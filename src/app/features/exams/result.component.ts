@@ -10,8 +10,8 @@ import { DataService } from '../../core/data.service';
       <div class="result-wrap">
         <div class="result-score">{{ a.score }}</div>
         <span class="result-over">sobre 10</span>
-        <h1>Examen corregido</h1>
-        <p>{{ a.official_exams?.municipality }} {{ a.official_exams?.year }}</p>
+        <h1>{{ a.title || 'Test corregido' }}</h1>
+        <p>{{ a.mode === 'PRACTICE' ? 'Modo práctico' : 'Modo examen' }}</p>
 
         <div class="result-stats">
           <div><strong>{{ a.correct_answers }}</strong><span>Correctas</span></div>
@@ -20,8 +20,9 @@ import { DataService } from '../../core/data.service';
         </div>
 
         <div class="result-actions">
-          <a routerLink="/app/falladas" class="btn">Repasar falladas</a>
-          <a routerLink="/app/oficiales" class="btn primary">Más exámenes</a>
+          <a routerLink="/app/falladas" class="btn">Ver falladas</a>
+          <a routerLink="/app/repasar" class="btn">Repasar marcadas</a>
+          <a routerLink="/app/tests" class="btn primary">Más tests</a>
         </div>
       </div>
     }
@@ -29,8 +30,15 @@ import { DataService } from '../../core/data.service';
 })
 export class ResultComponent implements OnInit {
   attempt = signal<any>(null);
-  constructor(private route: ActivatedRoute, private data: DataService) {}
+
+  constructor(
+    private route: ActivatedRoute,
+    private data: DataService
+  ) {}
+
   async ngOnInit() {
-    this.attempt.set(await this.data.getAttempt(this.route.snapshot.paramMap.get('id')!));
+    this.attempt.set(
+      await this.data.getAttempt(this.route.snapshot.paramMap.get('id')!)
+    );
   }
 }

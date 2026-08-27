@@ -52,15 +52,22 @@ export class AuthService {
       this.profile.set(null);
       return;
     }
+
     const { data, error } = await this.db.client
       .from('profiles')
-      .select('id,full_name,role')
+      .select('id,email,full_name,role,access_enabled')
       .eq('id', u.id)
       .single();
+
     if (!error) this.profile.set(data as Profile);
   }
 
   isAdmin(): boolean {
     return this.profile()?.role === 'ADMIN';
+  }
+
+  hasAccess(): boolean {
+    const p = this.profile();
+    return !!p && (p.access_enabled || p.role === 'ADMIN');
   }
 }

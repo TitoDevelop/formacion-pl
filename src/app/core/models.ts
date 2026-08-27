@@ -1,9 +1,20 @@
 export type UserRole = 'STUDENT' | 'ADMIN';
+export type TestMode = 'EXAM' | 'PRACTICE';
 
 export interface Profile {
   id: string;
+  email: string | null;
   full_name: string | null;
   role: UserRole;
+  access_enabled: boolean;
+}
+
+export interface Topic {
+  id: string;
+  number: number | null;
+  name: string;
+  active: boolean;
+  question_count?: number;
 }
 
 export interface QuestionOption {

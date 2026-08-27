@@ -6,13 +6,17 @@ export const authGuard: CanActivateFn = async () => {
   const auth = inject(AuthService);
   const router = inject(Router);
   if (!auth.initialized()) await auth.init();
-  return auth.user() ? true : router.createUrlTree(['/login']);
+
+  if (!auth.user()) return router.createUrlTree(['/login']);
+  if (!auth.hasAccess()) return router.createUrlTree(['/sin-acceso']);
+  return true;
 };
 
 export const adminGuard: CanActivateFn = async () => {
   const auth = inject(AuthService);
   const router = inject(Router);
   if (!auth.initialized()) await auth.init();
+
   return auth.user() && auth.isAdmin()
     ? true
     : router.createUrlTree(['/app/dashboard']);
