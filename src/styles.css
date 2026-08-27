@@ -241,3 +241,20 @@ a{text-decoration:none;color:inherit}
   .result-wrap{margin:15px auto;padding:25px 16px}
   .corporate-auth{padding:18px}.auth-brand-block h1{font-size:28px}.auth-highlights{display:none}.auth-real-logo{width:125px;height:125px}
 }
+
+
+/* V0.2.2 · Importador CSV */
+.admin-import-layout{display:grid;grid-template-columns:.9fr 1.1fr;gap:18px;align-items:start}
+.import-step{width:34px;height:34px;border-radius:50%;background:var(--brand-navy);color:var(--brand-gold-2);display:grid;place-items:center;font-weight:900;margin-bottom:12px}
+.csv-dropzone{min-height:190px;justify-content:center;align-items:center}
+.drop-icon{width:58px;height:58px;border-radius:13px;display:grid;place-items:center;background:var(--brand-navy);color:var(--brand-gold-2);font-size:14px;font-weight:900;letter-spacing:.08em;margin-bottom:10px}
+.import-stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0 16px}
+.import-stats>div{background:#f6f7fa;border:1px solid var(--brand-line);border-radius:11px;padding:15px}
+.import-stats strong,.import-stats span{display:block}.import-stats strong{font-size:28px;color:var(--brand-navy)}.import-stats span{font-size:11px;color:var(--brand-muted);margin-top:3px}
+.detected-exams{max-height:430px;overflow:auto;border:1px solid var(--brand-line);border-radius:11px}
+.detected-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 13px;border-top:1px solid var(--brand-line)}
+.detected-row:first-child{border-top:0}.detected-row strong,.detected-row span{display:block}.detected-row strong{font-size:13px;color:var(--brand-navy)}.detected-row span{font-size:11px;color:var(--brand-muted);margin-top:2px}
+.detected-count{font-size:11px;font-weight:800;background:var(--brand-gold-soft);color:#775f17;border-radius:999px;padding:5px 8px;white-space:nowrap}
+.import-all-btn{margin-top:14px}.import-progress{margin-top:10px;text-align:center;color:var(--brand-muted);font-size:12px}
+.csv-format-help{margin-top:18px}.csv-format-help p{color:var(--brand-muted);line-height:1.5}.csv-columns{display:flex;flex-wrap:wrap;gap:7px;margin:12px 0}.csv-columns code,.csv-format-help code{background:#f1f2f5;border:1px solid #e0e2e8;border-radius:6px;padding:4px 7px;font-size:11px;color:var(--brand-navy)}
+@media(max-width:900px){.admin-import-layout{grid-template-columns:1fr}}

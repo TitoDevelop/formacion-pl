@@ -134,3 +134,36 @@ Netlify leerá el `netlify.toml` existente.
 - Login completamente rediseñado.
 - Sidebar corporativo con logo y usuario.
 - Botones, tarjetas, progreso, tests y administración adaptados a la nueva identidad.
+
+
+## V0.2.2 · Importador masivo CSV
+
+El panel `Administración > Importar exámenes` ahora utiliza CSV como formato principal.
+
+Puede importar un único archivo con muchos exámenes.
+
+Columnas obligatorias:
+
+```csv
+exam_name,municipality,year,question_number,position,statement,option_a,option_b,option_c,option_d,correct_option
+```
+
+Opcionales:
+
+```csv
+correct_text,source_id
+```
+
+El importador:
+
+- agrupa preguntas por `exam_name + municipality + year`;
+- muestra una previsualización;
+- cuenta exámenes y preguntas;
+- crea los exámenes;
+- crea las preguntas;
+- crea las cuatro opciones;
+- marca la opción correcta;
+- relaciona cada pregunta con su examen;
+- evita duplicar exámenes importados anteriormente mediante `source_key`.
+
+No requiere ninguna migración nueva de Supabase respecto a V0.2.

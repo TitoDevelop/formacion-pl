@@ -1,114 +1,193 @@
 import { Component, computed, signal } from '@angular/core';
-import { FormsModule } from '@angular/forms';
 import { DataService } from '../../core/data.service';
-import { ImportGroup } from '../../core/models';
 
 @Component({
   standalone: true,
-  imports: [FormsModule],
   template: `
     <header class="page-title">
-      <div><span class="eyebrow">ADMINISTRACIÓN</span><h1>Importar examen oficial</h1><p>Lee directamente el JSON interno del HTML universal.</p></div>
+      <div>
+        <span class="eyebrow">ADMINISTRACIÓN</span>
+        <h1>Importar exámenes oficiales</h1>
+        <p>Importa uno o varios exámenes desde un único CSV.</p>
+      </div>
     </header>
 
-    <div class="admin-grid">
+    <div class="admin-import-layout">
       <section class="panel">
-        <h2>1. Selecciona el HTML universal</h2>
-        <label class="dropzone">
-          <strong>Elegir Banco_Universal_PL_CV.html</strong>
-          <span>El archivo se procesa en tu navegador.</span>
-          <input type="file" accept=".html,text/html" hidden (change)="loadFile($event)">
+        <div class="import-step">1</div>
+        <h2>Selecciona un CSV</h2>
+        <p class="muted">
+          El archivo puede contener muchos municipios y años. La plataforma los agrupa automáticamente.
+        </p>
+
+        <label class="dropzone csv-dropzone">
+          <div class="drop-icon">CSV</div>
+          <strong>Elegir archivo CSV</strong>
+          <span>También puedes arrastrarlo aquí desde tu equipo.</span>
+          <input
+            type="file"
+            accept=".csv,text/csv"
+            hidden
+            (change)="loadCsv($event)">
         </label>
 
         @if (fileName()) {
-          <div class="file-ok">✓ {{ fileName() }} · {{ groups().length }} grupos municipio/año detectados</div>
+          <div class="file-ok">
+            ✓ {{ fileName() }}
+          </div>
         }
-        @if (error()) { <div class="form-error">{{ error() }}</div> }
+
+        @if (error()) {
+          <div class="form-error">{{ error() }}</div>
+        }
       </section>
 
-      @if (groups().length) {
+      @if (exams().length) {
         <section class="panel">
-          <h2>2. Elige qué importar</h2>
+          <div class="import-step">2</div>
+          <h2>Resumen de importación</h2>
 
-          <label>Municipio y año</label>
-          <select [ngModel]="selectedKey()" (ngModelChange)="selectedKey.set($event)">
-            @for (group of groups(); track key(group)) {
-              <option [value]="key(group)">{{ group.municipality }} · {{ group.year }} ({{ group.questions.length }} preguntas)</option>
-            }
-          </select>
-
-          <label>Límite para esta prueba</label>
-          <input type="number" min="1" max="300" [(ngModel)]="limit">
-          <p class="help">Recomendación inicial: 20 preguntas. Después puedes importar el examen completo.</p>
-
-          @if (selectedGroup(); as group) {
-            <div class="import-summary">
-              <strong>{{ group.municipality }} · {{ group.year }}</strong>
-              <span>Se importarán {{ effectiveLimit() }} de {{ group.questions.length }} preguntas.</span>
+          <div class="import-stats">
+            <div>
+              <strong>{{ exams().length }}</strong>
+              <span>Exámenes detectados</span>
             </div>
+            <div>
+              <strong>{{ totalQuestions() }}</strong>
+              <span>Preguntas detectadas</span>
+            </div>
+          </div>
 
-            <h3>Previsualización</h3>
-            @for (q of group.questions.slice(0, 5); track q.id) {
-              <div class="preview-q">
-                <strong>P{{ q.n }}. {{ q.e }}</strong>
-                <small>Correcta: {{ q.c }}</small>
+          <div class="detected-exams">
+            @for (exam of exams(); track exam.exam_name) {
+              <div class="detected-row">
+                <div>
+                  <strong>{{ exam.exam_name }}</strong>
+                  <span>{{ exam.municipality }} · {{ exam.year }}</span>
+                </div>
+                <div class="detected-count">
+                  {{ exam.questions.length }} preguntas
+                </div>
               </div>
             }
+          </div>
 
-            <button class="btn primary wide" (click)="importSelected()" [disabled]="importing()">
-              {{ importing() ? 'Importando…' : 'IMPORTAR EN SUPABASE' }}
-            </button>
+          <button
+            class="btn primary wide import-all-btn"
+            (click)="importAll()"
+            [disabled]="importing()">
+            {{ importing()
+              ? 'IMPORTANDO...'
+              : 'IMPORTAR ' + exams().length + ' EXÁMENES' }}
+          </button>
+
+          @if (progress()) {
+            <div class="import-progress">{{ progress() }}</div>
           }
 
-          @if (success()) { <div class="form-info">{{ success() }}</div> }
+          @if (success()) {
+            <div class="form-info">{{ success() }}</div>
+          }
         </section>
       }
     </div>
+
+    <section class="panel csv-format-help">
+      <h2>Formato CSV esperado</h2>
+      <p>
+        Cada fila representa una pregunta. Las preguntas con el mismo
+        <strong>exam_name + municipality + year</strong> se agrupan como un examen.
+      </p>
+
+      <div class="csv-columns">
+        <code>exam_name</code>
+        <code>municipality</code>
+        <code>year</code>
+        <code>question_number</code>
+        <code>position</code>
+        <code>statement</code>
+        <code>option_a</code>
+        <code>option_b</code>
+        <code>option_c</code>
+        <code>option_d</code>
+        <code>correct_option</code>
+      </div>
+
+      <p class="muted">
+        También admite opcionalmente <code>correct_text</code> y <code>source_id</code>.
+      </p>
+    </section>
   `
 })
 export class AdminImportComponent {
-  groups = signal<ImportGroup[]>([]);
-  selectedKey = signal('');
+  exams = signal<any[]>([]);
   fileName = signal('');
   error = signal('');
   success = signal('');
+  progress = signal('');
   importing = signal(false);
-  limit = 20;
 
-  selectedGroup = computed(() => this.groups().find(g => this.key(g) === this.selectedKey()) ?? this.groups()[0] ?? null);
-  effectiveLimit = computed(() => Math.min(Math.max(1, Number(this.limit) || 20), this.selectedGroup()?.questions.length ?? 0));
+  totalQuestions = computed(() =>
+    this.exams().reduce((sum, exam) => sum + exam.questions.length, 0)
+  );
 
   constructor(private data: DataService) {}
 
-  async loadFile(event: Event) {
+  async loadCsv(event: Event) {
     this.error.set('');
     this.success.set('');
+    this.progress.set('');
+    this.exams.set([]);
+
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
     if (!file) return;
+
     this.fileName.set(file.name);
+
     try {
-      const groups = this.data.parseUniversalHtml(await file.text());
-      this.groups.set(groups);
-      if (groups.length) this.selectedKey.set(this.key(groups[0]));
+      const parsed = this.data.parseOfficialCsv(await file.text());
+
+      if (!parsed.length) {
+        throw new Error('No se ha detectado ningún examen válido en el CSV.');
+      }
+
+      this.exams.set(parsed);
     } catch (e: any) {
-      this.error.set(e?.message ?? 'No se pudo procesar el HTML.');
+      this.error.set(e?.message ?? 'No se pudo procesar el CSV.');
     }
   }
 
-  key(g: ImportGroup) { return `${g.municipality}|||${g.year}`; }
+  async importAll() {
+    if (!this.exams().length) return;
 
-  async importSelected() {
-    const group = this.selectedGroup();
-    if (!group) return;
+    if (!confirm(
+      `Se van a importar ${this.exams().length} exámenes y ${this.totalQuestions()} preguntas. ¿Continuar?`
+    )) {
+      return;
+    }
+
     this.importing.set(true);
     this.error.set('');
     this.success.set('');
+    this.progress.set('Procesando exámenes y preguntas en Supabase...');
+
     try {
-      await this.data.importOfficialGroup(group, this.effectiveLimit());
-      this.success.set(`✓ Importado ${group.municipality} ${group.year} con ${this.effectiveLimit()} preguntas. Ya aparece en Exámenes oficiales.`);
+      const result = await this.data.importOfficialCsvExams(this.exams());
+
+      const skippedText = result.skipped.length
+        ? ` ${result.skipped.length} exámenes ya existían y se han omitido.`
+        : '';
+
+      this.success.set(
+        `✓ Importación completada: ${result.importedExams} exámenes y ` +
+        `${result.importedQuestions} preguntas importadas.${skippedText}`
+      );
+
+      this.progress.set('');
     } catch (e: any) {
       this.error.set(e?.message ?? 'Error durante la importación.');
+      this.progress.set('');
     } finally {
       this.importing.set(false);
     }

@@ -404,6 +404,224 @@ export class DataService {
     }
   }
 
+
+  parseOfficialCsv(csvText: string) {
+    const rows = this.parseCsv(csvText);
+    if (rows.length < 2) throw new Error('El CSV no contiene preguntas.');
+
+    const headers = rows[0].map(h => h.trim().toLowerCase());
+    const idx = (name: string) => headers.indexOf(name);
+
+    const required = [
+      'exam_name',
+      'municipality',
+      'year',
+      'question_number',
+      'position',
+      'statement',
+      'option_a',
+      'option_b',
+      'option_c',
+      'option_d',
+      'correct_option'
+    ];
+
+    const missing = required.filter(h => idx(h) < 0);
+    if (missing.length) {
+      throw new Error(`Faltan columnas obligatorias: ${missing.join(', ')}`);
+    }
+
+    const grouped = new Map<string, any>();
+
+    for (const row of rows.slice(1)) {
+      if (!row.some(c => c.trim())) continue;
+
+      const examName = row[idx('exam_name')]?.trim();
+      const municipality = row[idx('municipality')]?.trim();
+      const year = Number(row[idx('year')]?.trim());
+
+      if (!examName || !municipality || !year) continue;
+
+      const key = `${examName}|||${municipality}|||${year}`;
+
+      if (!grouped.has(key)) {
+        grouped.set(key, {
+          exam_name: examName,
+          municipality,
+          year,
+          questions: []
+        });
+      }
+
+      grouped.get(key).questions.push({
+        question_number: row[idx('question_number')]?.trim() || '',
+        position: Number(row[idx('position')]?.trim() || 0),
+        statement: row[idx('statement')]?.trim() || '',
+        option_a: row[idx('option_a')]?.trim() || '',
+        option_b: row[idx('option_b')]?.trim() || '',
+        option_c: row[idx('option_c')]?.trim() || '',
+        option_d: row[idx('option_d')]?.trim() || '',
+        correct_option: (row[idx('correct_option')]?.trim() || '').toUpperCase(),
+        correct_text: idx('correct_text') >= 0 ? row[idx('correct_text')]?.trim() || '' : '',
+        source_id: idx('source_id') >= 0 ? row[idx('source_id')]?.trim() || '' : ''
+      });
+    }
+
+    const exams = [...grouped.values()];
+
+    for (const exam of exams) {
+      exam.questions.sort((a: any, b: any) => a.position - b.position);
+    }
+
+    return exams;
+  }
+
+  async importOfficialCsvExams(exams: any[]) {
+    let importedExams = 0;
+    let importedQuestions = 0;
+    const skipped: string[] = [];
+
+    for (const examData of exams) {
+      const sourceKey = `csv-${examData.municipality}-${examData.year}-${this.slug(examData.exam_name)}`;
+
+      const { data: existing, error: existingError } = await this.db.client
+        .from('official_exams')
+        .select('id')
+        .eq('source_key', sourceKey)
+        .maybeSingle();
+
+      if (existingError) throw existingError;
+
+      if (existing?.id) {
+        skipped.push(examData.exam_name);
+        continue;
+      }
+
+      const { data: exam, error: examError } = await this.db.client
+        .from('official_exams')
+        .insert({
+          name: examData.exam_name,
+          municipality: examData.municipality,
+          year: examData.year,
+          source_key: sourceKey,
+          active: true
+        })
+        .select('id')
+        .single();
+
+      if (examError) throw examError;
+
+      try {
+        for (let i = 0; i < examData.questions.length; i++) {
+          const q = examData.questions[i];
+
+          if (!q.statement) continue;
+
+          const { data: question, error: qError } = await this.db.client
+            .from('questions')
+            .insert({
+              statement: q.statement,
+              official: true,
+              source_reference: `${examData.exam_name} · P${q.question_number || (i + 1)}`
+            })
+            .select('id')
+            .single();
+
+          if (qError) throw qError;
+
+          const letters = ['A', 'B', 'C', 'D'];
+          const optionValues = [q.option_a, q.option_b, q.option_c, q.option_d];
+
+          const options = optionValues.map((text: string, index: number) => ({
+            question_id: question.id,
+            text,
+            position: index + 1,
+            is_correct: letters[index] === q.correct_option
+          }));
+
+          if (!letters.includes(q.correct_option)) {
+            throw new Error(
+              `Respuesta correcta inválida en ${examData.exam_name}, pregunta ${q.question_number || i + 1}.`
+            );
+          }
+
+          const { error: optionError } = await this.db.client
+            .from('question_options')
+            .insert(options);
+
+          if (optionError) throw optionError;
+
+          const { error: relationError } = await this.db.client
+            .from('official_exam_questions')
+            .insert({
+              exam_id: exam.id,
+              question_id: question.id,
+              question_number: q.question_number || String(i + 1),
+              position: q.position || i + 1
+            });
+
+          if (relationError) throw relationError;
+
+          importedQuestions++;
+        }
+
+        importedExams++;
+      } catch (error) {
+        await this.db.client.from('official_exams').delete().eq('id', exam.id);
+        throw error;
+      }
+    }
+
+    return {
+      importedExams,
+      importedQuestions,
+      skipped
+    };
+  }
+
+  private parseCsv(text: string): string[][] {
+    const rows: string[][] = [];
+    let row: string[] = [];
+    let cell = '';
+    let quoted = false;
+
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      const next = text[i + 1];
+
+      if (c === '"' && quoted && next === '"') {
+        cell += '"';
+        i++;
+      } else if (c === '"') {
+        quoted = !quoted;
+      } else if (c === ',' && !quoted) {
+        row.push(cell);
+        cell = '';
+      } else if ((c === '\n' || c === '\r') && !quoted) {
+        if (c === '\r' && next === '\n') i++;
+        row.push(cell);
+        rows.push(row);
+        row = [];
+        cell = '';
+      } else {
+        cell += c;
+      }
+    }
+
+    row.push(cell);
+    rows.push(row);
+    return rows;
+  }
+
+  private slug(value: string): string {
+    return value
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+  }
+
   private shuffle<T>(items: T[]): T[] {
     const a = [...items];
     for (let i = a.length - 1; i > 0; i--) {
