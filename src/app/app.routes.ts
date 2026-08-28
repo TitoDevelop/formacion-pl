@@ -5,6 +5,8 @@ import { LoginComponent } from './features/auth/login.component';
 import { NoAccessComponent } from './features/auth/no-access.component';
 import { DashboardComponent } from './features/dashboard/dashboard.component';
 import { ExamPlayerComponent } from './features/exams/exam-player.component';
+import { OfficialExamDetailComponent } from './features/exams/official-exam-detail.component';
+import { TopicDetailComponent } from './features/exams/topic-detail.component';
 import { ResultComponent } from './features/exams/result.component';
 import { CustomTestComponent } from './features/exams/custom-test.component';
 import { TestsLibraryComponent } from './features/exams/tests-library.component';
@@ -13,40 +15,10 @@ import { MistakesComponent } from './features/mistakes/mistakes.component';
 import { ReviewTestComponent } from './features/mistakes/review-test.component';
 import { AdminImportComponent } from './features/admin/admin-import.component';
 import { AdminStudentsComponent } from './features/admin/admin-students.component';
-
-export const routes: Routes = [
-  { path: 'login', component: LoginComponent },
-  { path: 'sin-acceso', component: NoAccessComponent },
-
-  {
-    path: 'app',
-    component: AppShellComponent,
-    canActivate: [authGuard],
-    children: [
-      { path: 'dashboard', component: DashboardComponent },
-      { path: 'crear-test', component: CustomTestComponent },
-      { path: 'tests', component: TestsLibraryComponent },
-      { path: 'test/personalizado', component: TestPlayerComponent, data: { source: 'CUSTOM' } },
-      { path: 'test/repaso', component: TestPlayerComponent, data: { source: 'REVIEW' } },
-      { path: 'oficiales/:id', component: ExamPlayerComponent },
-      { path: 'resultado/:id', component: ResultComponent },
-      { path: 'repasar', component: ReviewTestComponent },
-      { path: 'falladas', component: MistakesComponent },
-      { path: '', pathMatch: 'full', redirectTo: 'dashboard' }
-    ]
-  },
-
-  {
-    path: 'admin',
-    component: AppShellComponent,
-    canActivate: [authGuard, adminGuard],
-    children: [
-      { path: 'alumnos', component: AdminStudentsComponent },
-      { path: 'importar', component: AdminImportComponent },
-      { path: '', pathMatch: 'full', redirectTo: 'alumnos' }
-    ]
-  },
-
-  { path: '', pathMatch: 'full', redirectTo: 'app/dashboard' },
-  { path: '**', redirectTo: 'app/dashboard' }
-];
+import { AdminResourcesComponent } from './features/admin/admin-resources.component';
+export const routes:Routes=[
+{path:'login',component:LoginComponent},{path:'sin-acceso',component:NoAccessComponent},
+{path:'app',component:AppShellComponent,canActivate:[authGuard],children:[
+{path:'dashboard',component:DashboardComponent},{path:'crear-test',component:CustomTestComponent},{path:'tests',component:TestsLibraryComponent},{path:'temas/:id',component:TopicDetailComponent},{path:'test/personalizado',component:TestPlayerComponent,data:{source:'CUSTOM'}},{path:'test/repaso',component:TestPlayerComponent,data:{source:'REVIEW'}},{path:'test/falladas-tema',component:TestPlayerComponent,data:{source:'FAILED_TOPIC'}},{path:'oficiales/:id',component:OfficialExamDetailComponent},{path:'oficiales/:id/realizar',component:ExamPlayerComponent},{path:'resultado/:id',component:ResultComponent},{path:'repasar',component:ReviewTestComponent},{path:'falladas',component:MistakesComponent},{path:'',pathMatch:'full',redirectTo:'dashboard'}]},
+{path:'admin',component:AppShellComponent,canActivate:[authGuard,adminGuard],children:[{path:'alumnos',component:AdminStudentsComponent},{path:'importar',component:AdminImportComponent},{path:'recursos',component:AdminResourcesComponent},{path:'',pathMatch:'full',redirectTo:'alumnos'}]},
+{path:'',pathMatch:'full',redirectTo:'app/dashboard'},{path:'**',redirectTo:'app/dashboard'}];

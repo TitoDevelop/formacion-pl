@@ -3,7 +3,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { DataService } from '../../core/data.service';
 import { Question, QuestionOption, TestMode } from '../../core/models';
 
-type PlayerSource = 'CUSTOM' | 'REVIEW';
+type PlayerSource = 'CUSTOM' | 'REVIEW' | 'FAILED_TOPIC';
 
 @Component({
   standalone: true,
@@ -132,11 +132,13 @@ export class TestPlayerComponent implements OnInit {
       if (source === 'REVIEW') {
         this.title.set('Repaso de preguntas marcadas');
         questions = await this.data.getReviewQuestions(count);
+      } else if (source === 'FAILED_TOPIC') {
+        const topicId = this.route.snapshot.queryParamMap.get('topic') ?? '';
+        this.topicIds = topicId ? [topicId] : [];
+        this.title.set('Repaso de falladas del tema');
+        questions = topicId ? await this.data.getTopicFailedQuestions(topicId, count) : [];
       } else {
-        this.topicIds = (this.route.snapshot.queryParamMap.get('topics') ?? '')
-          .split(',')
-          .filter(Boolean);
-
+        this.topicIds = (this.route.snapshot.queryParamMap.get('topics') ?? '').split(',').filter(Boolean);
         this.title.set('Test personalizado');
         questions = await this.data.getCustomQuestions(this.topicIds, count);
       }
@@ -223,7 +225,7 @@ export class TestPlayerComponent implements OnInit {
 
       const attemptId = await this.data.finishAttempt(
         null,
-        this.source() === 'REVIEW' ? 'MISTAKES' : 'CUSTOM',
+        this.source() === 'REVIEW' || this.source() === 'FAILED_TOPIC' ? 'MISTAKES' : 'CUSTOM',
         this.mode(),
         this.title(),
         this.source() === 'CUSTOM' ? this.topicIds : null,

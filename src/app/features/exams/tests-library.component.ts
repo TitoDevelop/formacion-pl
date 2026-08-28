@@ -33,9 +33,8 @@ import { OfficialExam, Topic } from '../../core/models';
                 @if (topic.question_count) {
                   <a
                     class="text-link"
-                    [routerLink]="['/app/crear-test']"
-                    [queryParams]="{topic: topic.id}">
-                    Crear test →
+                    [routerLink]="['/app/temas', topic.id]">
+                    Ver tema →
                   </a>
                 } @else {
                   <span class="muted">Pendiente de clasificar preguntas</span>
@@ -60,7 +59,7 @@ import { OfficialExam, Topic } from '../../core/models';
             <h2>{{ exam.municipality }}</h2>
             <p>{{ exam.name }}</p>
             <a class="btn primary wide" [routerLink]="['/app/oficiales', exam.id]">
-              Realizar examen
+              Ver examen
             </a>
           </article>
         } @empty {

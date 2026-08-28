@@ -307,6 +307,108 @@ export class DataService {
     if (error) throw error;
   }
 
+
+  async getTopic(topicId: string): Promise<Topic> {
+    const { data, error } = await this.db.client.from('topics')
+      .select('id,number,name,active').eq('id', topicId).single();
+    if (error) throw error;
+    return data as Topic;
+  }
+
+  async getTopicProgress(topicId: string) {
+    const userId = this.auth.user()?.id;
+    if (!userId) throw new Error('No hay sesión activa.');
+
+    const { data: topicQuestions, error: tqError } = await this.db.client
+      .from('questions').select('id').eq('topic_id', topicId);
+    if (tqError) throw tqError;
+    const questionIds = (topicQuestions ?? []).map(q => q.id);
+    const totalQuestions = questionIds.length;
+    if (!questionIds.length) return { totalQuestions:0, answeredQuestions:0, correctAnswers:0, wrongAnswers:0, accuracy:0, completion:0, failedQuestionIds:[], attempts:[] };
+
+    const { data: attempts, error: aError } = await this.db.client
+      .from('test_attempts')
+      .select('id,title,mode,total_questions,correct_answers,wrong_answers,blank_answers,score,finished_at,topic_ids')
+      .eq('user_id', userId).contains('topic_ids', [topicId])
+      .order('finished_at', { ascending: false }).limit(30);
+    if (aError) throw aError;
+
+    const { data: answers, error: ansError } = await this.db.client
+      .from('test_attempt_answers')
+      .select('question_id,is_correct,answered_at,test_attempts!inner(user_id)')
+      .eq('test_attempts.user_id', userId)
+      .in('question_id', questionIds)
+      .order('answered_at', { ascending: true });
+    if (ansError) throw ansError;
+
+    const latest = new Map<string, { correct: boolean; answered_at: string }>();
+    for (const ans of answers ?? []) latest.set(ans.question_id, { correct: ans.is_correct, answered_at: ans.answered_at });
+    const answeredQuestions = latest.size;
+    const correctAnswers = [...latest.values()].filter(x => x.correct).length;
+    const wrongAnswers = answeredQuestions - correctAnswers;
+    const failedQuestionIds = [...latest.entries()].filter(([,v]) => !v.correct).map(([id]) => id);
+
+    return {
+      totalQuestions, answeredQuestions, correctAnswers, wrongAnswers,
+      accuracy: answeredQuestions ? Math.round(correctAnswers / answeredQuestions * 100) : 0,
+      completion: totalQuestions ? Math.min(100, Math.round(answeredQuestions / totalQuestions * 100)) : 0,
+      failedQuestionIds,
+      attempts: attempts ?? []
+    };
+  }
+
+  async getTopicFailedQuestions(topicId: string, count: number): Promise<Question[]> {
+    const progress = await this.getTopicProgress(topicId);
+    const ids = progress.failedQuestionIds.slice(0, Math.max(1, count));
+    if (!ids.length) return [];
+    const { data, error } = await this.db.client.from('questions').select(`
+      id, statement, explanation, topic_id, official, source_reference,
+      question_options (id, question_id, text, position, is_correct)
+    `).in('id', ids);
+    if (error) throw error;
+    const byId = new Map(((data ?? []) as Question[]).map(q => [q.id, q]));
+    return ids.map(id => byId.get(id)).filter(Boolean) as Question[];
+  }
+
+  async listTopicResources(topicId: string) {
+    const { data, error } = await this.db.client.from('topic_resources')
+      .select('*').eq('topic_id', topicId).order('created_at', { ascending: false });
+    if (error) throw error;
+    return data ?? [];
+  }
+
+  async getTopicResourceDownloadUrl(storagePath: string): Promise<string> {
+    const { data, error } = await this.db.client.storage.from('topic-resources').createSignedUrl(storagePath, 600);
+    if (error) throw error;
+    if (!data.signedUrl) throw new Error('No se pudo crear el enlace de descarga.');
+    return data.signedUrl;
+  }
+
+  async adminUploadTopicResource(topicId: string, title: string, file: File) {
+    const userId = this.auth.user()?.id;
+    if (!userId) throw new Error('No hay sesión activa.');
+    const safeName = file.name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9._-]+/g, '-');
+    const storagePath = `${topicId}/${crypto.randomUUID()}-${safeName}`;
+    const { error: uploadError } = await this.db.client.storage.from('topic-resources').upload(storagePath, file, { contentType: file.type || undefined, upsert: false });
+    if (uploadError) throw uploadError;
+    const { data, error } = await this.db.client.from('topic_resources').insert({
+      topic_id: topicId, title: title.trim() || file.name, file_name: file.name,
+      storage_path: storagePath, mime_type: file.type || null, file_size: file.size, created_by: userId
+    }).select('*').single();
+    if (error) {
+      await this.db.client.storage.from('topic-resources').remove([storagePath]);
+      throw error;
+    }
+    return data;
+  }
+
+  async adminDeleteTopicResource(resource: any) {
+    const { error: storageError } = await this.db.client.storage.from('topic-resources').remove([resource.storage_path]);
+    if (storageError) throw storageError;
+    const { error } = await this.db.client.from('topic_resources').delete().eq('id', resource.id);
+    if (error) throw error;
+  }
+
   parseUniversalHtml(html: string): ImportGroup[] {
     const match = html.match(/<script id=["']datos["'][^>]*>([\s\S]*?)<\/script>/i);
     if (!match) throw new Error('No se ha encontrado el bloque JSON id="datos".');

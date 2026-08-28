@@ -68,3 +68,26 @@ export interface ImportGroup {
   year: number;
   questions: UniversalQuestion[];
 }
+
+
+export interface TopicResource {
+  id: string;
+  topic_id: string;
+  title: string;
+  file_name: string;
+  storage_path: string;
+  mime_type: string | null;
+  file_size: number | null;
+  created_at: string;
+}
+
+export interface TopicProgress {
+  totalQuestions: number;
+  answeredQuestions: number;
+  correctAnswers: number;
+  wrongAnswers: number;
+  accuracy: number;
+  completion: number;
+  failedQuestionIds: string[];
+  attempts: any[];
+}

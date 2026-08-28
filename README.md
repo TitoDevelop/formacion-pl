@@ -167,3 +167,9 @@ El importador:
 - evita duplicar exámenes importados anteriormente mediante `source_key`.
 
 No requiere ninguna migración nueva de Supabase respecto a V0.2.
+
+
+## V0.2.3
+Ejecuta `supabase/migration-v023.sql` después de `migration-v02.sql`.
+
+Incluye selector EXAMEN/PRÁCTICO para oficiales, ficha de tema con progreso, historial, falladas y descargables, y administración de recursos por tema usando Supabase Storage privado.

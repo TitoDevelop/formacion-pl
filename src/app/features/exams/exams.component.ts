@@ -26,7 +26,7 @@ import { OfficialExam } from '../../core/models';
             <div class="exam-icon">🏛</div>
             <h2>{{ exam.municipality }}</h2>
             <p>{{ exam.name }}</p>
-            <a class="btn primary wide" [routerLink]="['/app/oficiales', exam.id]">Realizar examen</a>
+            <a class="btn primary wide" [routerLink]="['/app/oficiales', exam.id]">Ver examen</a>
           </article>
         }
       </div>
