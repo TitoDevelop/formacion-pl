@@ -173,3 +173,8 @@ No requiere ninguna migración nueva de Supabase respecto a V0.2.
 Ejecuta `supabase/migration-v023.sql` después de `migration-v02.sql`.
 
 Incluye selector EXAMEN/PRÁCTICO para oficiales, ficha de tema con progreso, historial, falladas y descargables, y administración de recursos por tema usando Supabase Storage privado.
+
+
+## V0.2.3 corregida Angular 19
+
+Corregidos los templates de `official-exam-detail.component.ts` y `topic-detail.component.ts` para no usar aliases `as` dentro de `@else if`.
