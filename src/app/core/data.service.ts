@@ -84,7 +84,7 @@ export class DataService {
     return (data ?? []) as unknown as ExamQuestionRow[];
   }
 
-  async getCustomQuestions(topicIds: string[], count: number): Promise<Question[]> {
+  async getCustomQuestions(topicIds: string[], count?: number): Promise<Question[]> {
     if (!topicIds.length) return [];
 
     const { data, error } = await this.db.client
@@ -98,7 +98,8 @@ export class DataService {
 
     if (error) throw error;
 
-    return this.shuffle((data ?? []) as Question[]).slice(0, count);
+    const questions = this.shuffle((data ?? []) as Question[]);
+    return count === undefined ? questions : questions.slice(0, count);
   }
 
   async getReviewQuestions(count: number): Promise<Question[]> {

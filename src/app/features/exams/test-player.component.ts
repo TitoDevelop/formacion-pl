@@ -123,6 +123,7 @@ export class TestPlayerComponent implements OnInit {
       const source = (this.route.snapshot.data['source'] ?? 'CUSTOM') as PlayerSource;
       const mode = (this.route.snapshot.queryParamMap.get('mode') ?? 'EXAM') as TestMode;
       const count = Math.max(1, Math.min(200, Number(this.route.snapshot.queryParamMap.get('count') ?? 20)));
+      const useAllQuestions = this.route.snapshot.queryParamMap.get('all') === 'true';
 
       this.source.set(source);
       this.mode.set(mode === 'PRACTICE' ? 'PRACTICE' : 'EXAM');
@@ -139,8 +140,8 @@ export class TestPlayerComponent implements OnInit {
         questions = topicId ? await this.data.getTopicFailedQuestions(topicId, count) : [];
       } else {
         this.topicIds = (this.route.snapshot.queryParamMap.get('topics') ?? '').split(',').filter(Boolean);
-        this.title.set('Test personalizado');
-        questions = await this.data.getCustomQuestions(this.topicIds, count);
+        this.title.set(useAllQuestions ? 'Test completo del tema' : 'Test personalizado');
+        questions = await this.data.getCustomQuestions(this.topicIds, useAllQuestions ? undefined : count);
       }
 
       this.questions.set(questions);
