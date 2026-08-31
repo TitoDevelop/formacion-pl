@@ -28,13 +28,12 @@ import { TestMode, Topic } from '../../core/models';
               <button
                 class="topic-choice"
                 [class.selected]="selectedTopics().has(topic.id)"
-                [class.empty-topic]="!topic.question_count"
-                (click)="toggleTopic(topic)"
-                [disabled]="!topic.question_count">
+                [class.empty-topic]="topicQuestionCount(topic.id) === 0"
+                (click)="toggleTopic(topic)">
                 <span class="topic-number">{{ topic.number ?? '—' }}</span>
                 <div>
                   <strong>{{ topic.name }}</strong>
-                  <small>{{ topic.question_count }} preguntas disponibles</small>
+                  <small>{{ topicQuestionCountLabel(topic.id) }}</small>
                 </div>
                 <span class="check">{{ selectedTopics().has(topic.id) ? '✓' : '+' }}</span>
               </button>
@@ -74,7 +73,9 @@ import { TestMode, Topic } from '../../core/models';
         <div class="builder-summary">
           <span>Temas seleccionados</span>
           <strong>{{ selectedTopics().size }}</strong>
-          <span>Preguntas</span>
+          <span>Preguntas disponibles</span>
+          <strong>{{ selectedQuestionTotalLabel() }}</strong>
+          <span>Preguntas del test</span>
           <strong>{{ count }}</strong>
         </div>
 
@@ -88,6 +89,8 @@ import { TestMode, Topic } from '../../core/models';
 export class CustomTestComponent implements OnInit {
   topics = signal<Topic[]>([]);
   selectedTopics = signal<Set<string>>(new Set());
+  questionCounts = signal<Record<string, number>>({});
+  loadingCounts = signal<Set<string>>(new Set());
   loading = signal(true);
   error = signal('');
   count = 20;
@@ -106,8 +109,11 @@ export class CustomTestComponent implements OnInit {
 
       const preselected = this.route.snapshot.queryParamMap.get('topic');
       if (preselected) {
-        const topic = this.topics().find(t => t.id === preselected && (t.question_count ?? 0) > 0);
-        if (topic) this.selectedTopics.set(new Set([topic.id]));
+        const topic = this.topics().find(t => t.id === preselected);
+        if (topic) {
+          this.selectedTopics.set(new Set([topic.id]));
+          void this.ensureTopicCount(topic.id);
+        }
       }
     } finally {
       this.loading.set(false);
@@ -115,29 +121,81 @@ export class CustomTestComponent implements OnInit {
   }
 
   toggleTopic(topic: Topic) {
-    if (!topic.question_count) return;
-
     this.selectedTopics.update(set => {
       const next = new Set(set);
       next.has(topic.id) ? next.delete(topic.id) : next.add(topic.id);
       return next;
     });
+
+    if (this.selectedTopics().has(topic.id)) {
+      void this.ensureTopicCount(topic.id);
+    }
   }
 
   start() {
     this.error.set('');
 
     if (!this.selectedTopics().size) {
-      this.error.set('Selecciona al menos un tema con preguntas disponibles.');
+      this.error.set('Selecciona al menos un tema.');
+      return;
+    }
+
+    const selectedIds = [...this.selectedTopics()];
+    const selectedTotal = selectedIds.reduce((sum, id) => sum + (this.questionCounts()[id] ?? 0), 0);
+
+    if (selectedIds.some(id => this.questionCounts()[id] === undefined)) {
+      this.error.set('Espera un momento a que se calcule cuantas preguntas hay.');
+      return;
+    }
+
+    if (!selectedTotal) {
+      this.error.set('Los temas seleccionados no tienen preguntas disponibles.');
       return;
     }
 
     this.router.navigate(['/app/test/personalizado'], {
       queryParams: {
-        topics: [...this.selectedTopics()].join(','),
+        topics: selectedIds.join(','),
         count: this.count,
         mode: this.mode
       }
     });
+  }
+
+  topicQuestionCount(topicId: string): number | undefined {
+    return this.questionCounts()[topicId];
+  }
+
+  topicQuestionCountLabel(topicId: string) {
+    if (this.loadingCounts().has(topicId)) return 'Calculando preguntas...';
+    const count = this.questionCounts()[topicId];
+    if (count === undefined) return 'Selecciona para ver preguntas';
+    return `${count} preguntas disponibles`;
+  }
+
+  selectedQuestionTotalLabel() {
+    const selectedIds = [...this.selectedTopics()];
+    if (!selectedIds.length) return '0';
+    if (selectedIds.some(id => this.loadingCounts().has(id) || this.questionCounts()[id] === undefined)) {
+      return 'Calculando...';
+    }
+    return String(selectedIds.reduce((sum, id) => sum + (this.questionCounts()[id] ?? 0), 0));
+  }
+
+  private async ensureTopicCount(topicId: string) {
+    if (this.questionCounts()[topicId] !== undefined || this.loadingCounts().has(topicId)) return;
+
+    this.loadingCounts.update(set => new Set(set).add(topicId));
+
+    try {
+      const count = await this.data.countTopicQuestions([topicId]);
+      this.questionCounts.update(counts => ({ ...counts, [topicId]: count }));
+    } finally {
+      this.loadingCounts.update(set => {
+        const next = new Set(set);
+        next.delete(topicId);
+        return next;
+      });
+    }
   }
 }

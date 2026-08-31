@@ -23,23 +23,19 @@ export class DataService {
       .order('number', { ascending: true, nullsFirst: false });
 
     if (error) throw error;
+    return (data ?? []) as Topic[];
+  }
 
-    const topics = (data ?? []) as Topic[];
-    if (!topics.length) return [];
+  async countTopicQuestions(topicIds: string[]): Promise<number> {
+    if (!topicIds.length) return 0;
 
-    const { data: questions, error: qError } = await this.db.client
+    const { count, error } = await this.db.client
       .from('questions')
-      .select('topic_id')
-      .not('topic_id', 'is', null);
+      .select('*', { count: 'exact', head: true })
+      .in('topic_id', topicIds);
 
-    if (qError) throw qError;
-
-    const counts = new Map<string, number>();
-    for (const q of questions ?? []) {
-      if (q.topic_id) counts.set(q.topic_id, (counts.get(q.topic_id) ?? 0) + 1);
-    }
-
-    return topics.map(t => ({ ...t, question_count: counts.get(t.id) ?? 0 }));
+    if (error) throw error;
+    return count ?? 0;
   }
 
   async listOfficialExams(): Promise<OfficialExam[]> {
@@ -331,12 +327,12 @@ export class DataService {
     const userId = this.auth.user()?.id;
     if (!userId) throw new Error('No hay sesión activa.');
 
+    const totalQuestions = await this.countTopicQuestions([topicId]);
     const { data: topicQuestions, error: tqError } = await this.db.client
       .from('questions').select('id').eq('topic_id', topicId);
     if (tqError) throw tqError;
     const questionIds = (topicQuestions ?? []).map(q => q.id);
-    const totalQuestions = questionIds.length;
-    if (!questionIds.length) return { totalQuestions:0, answeredQuestions:0, correctAnswers:0, wrongAnswers:0, accuracy:0, completion:0, failedQuestionIds:[], attempts:[] };
+    if (!totalQuestions || !questionIds.length) return { totalQuestions:0, answeredQuestions:0, correctAnswers:0, wrongAnswers:0, accuracy:0, completion:0, failedQuestionIds:[], attempts:[] };
 
     const { data: attempts, error: aError } = await this.db.client
       .from('test_attempts')

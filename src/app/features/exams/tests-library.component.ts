@@ -25,20 +25,16 @@ import { OfficialExam, Topic } from '../../core/models';
       } @else {
         <div class="topic-library">
           @for (topic of topics(); track topic.id) {
-            <article class="topic-test-card" [class.disabled-card]="!topic.question_count">
+            <article class="topic-test-card">
               <div class="topic-big-number">{{ topic.number ?? '—' }}</div>
               <div class="topic-card-body">
                 <h3>{{ topic.name }}</h3>
-                <p>{{ topic.question_count }} preguntas disponibles</p>
-                @if (topic.question_count) {
-                  <a
-                    class="text-link"
-                    [routerLink]="['/app/temas', topic.id]">
-                    Ver tema →
-                  </a>
-                } @else {
-                  <span class="muted">Pendiente de clasificar preguntas</span>
-                }
+                <p>Ver disponibilidad y progreso del tema.</p>
+                <a
+                  class="text-link"
+                  [routerLink]="['/app/temas', topic.id]">
+                  Ver tema →
+                </a>
               </div>
             </article>
           }

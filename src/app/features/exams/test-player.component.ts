@@ -310,7 +310,20 @@ export class TestPlayerComponent implements OnInit {
       const raw = localStorage.getItem(this.draftKey());
       if (!raw) return null;
       const draft = JSON.parse(raw) as Partial<TestDraft>;
-      return Array.isArray(draft?.questions) && draft.questions.length ? draft : null;
+      if (
+        !draft.source ||
+        !draft.mode ||
+        !draft.title ||
+        !Array.isArray(draft.topicIds) ||
+        !Array.isArray(draft.questions) ||
+        !draft.questions.length ||
+        typeof draft.currentIndex !== 'number' ||
+        !draft.selected ||
+        !Array.isArray(draft.answered)
+      ) {
+        return null;
+      }
+      return draft as TestDraft;
     } catch {
       this.deleteDraft();
       return null;
