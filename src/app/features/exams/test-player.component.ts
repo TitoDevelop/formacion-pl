@@ -5,6 +5,16 @@ import { DataService } from '../../core/data.service';
 import { Question, QuestionOption, TestMode } from '../../core/models';
 
 type PlayerSource = 'CUSTOM' | 'REVIEW' | 'FAILED_TOPIC';
+type TestDraft = {
+  source: PlayerSource;
+  mode: TestMode;
+  title: string;
+  topicIds: string[];
+  questions: Question[];
+  currentIndex: number;
+  selected: Record<string, string>;
+  answered: string[];
+};
 
 @Component({
   standalone: true,
@@ -295,11 +305,11 @@ export class TestPlayerComponent implements OnInit {
     }
   }
 
-  private readDraft(): any | null {
+  private readDraft(): TestDraft | null {
     try {
       const raw = localStorage.getItem(this.draftKey());
       if (!raw) return null;
-      const draft = JSON.parse(raw);
+      const draft = JSON.parse(raw) as Partial<TestDraft>;
       return Array.isArray(draft?.questions) && draft.questions.length ? draft : null;
     } catch {
       this.deleteDraft();
