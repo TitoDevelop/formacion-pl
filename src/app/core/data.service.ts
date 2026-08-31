@@ -507,6 +507,184 @@ export class DataService {
   }
 
 
+
+  parseTopicCsv(csvText: string) {
+    const rows = this.parseCsv(csvText);
+    if (rows.length < 2) throw new Error('El CSV no contiene preguntas.');
+
+    const headers = rows[0].map(h => h.trim().toLowerCase());
+    const idx = (name: string) => headers.indexOf(name);
+
+    const required = [
+      'topic_number',
+      'question_number',
+      'position',
+      'statement',
+      'option_a',
+      'option_b',
+      'option_c',
+      'option_d',
+      'correct_option'
+    ];
+
+    const missing = required.filter(h => idx(h) < 0);
+    if (missing.length) {
+      throw new Error(`Faltan columnas obligatorias para temas: ${missing.join(', ')}`);
+    }
+
+    const grouped = new Map<number, any>();
+
+    for (const row of rows.slice(1)) {
+      if (!row.some(c => c.trim())) continue;
+
+      const topicNumber = Number(row[idx('topic_number')]?.trim());
+      if (!Number.isInteger(topicNumber) || topicNumber <= 0) continue;
+
+      const topicName =
+        idx('topic_name') >= 0 && row[idx('topic_name')]?.trim()
+          ? row[idx('topic_name')].trim()
+          : `Tema ${topicNumber}`;
+
+      if (!grouped.has(topicNumber)) {
+        grouped.set(topicNumber, {
+          topic_number: topicNumber,
+          topic_name: topicName,
+          questions: []
+        });
+      }
+
+      grouped.get(topicNumber).questions.push({
+        question_number: row[idx('question_number')]?.trim() || '',
+        position: Number(row[idx('position')]?.trim() || 0),
+        statement: row[idx('statement')]?.trim() || '',
+        option_a: row[idx('option_a')]?.trim() || '',
+        option_b: row[idx('option_b')]?.trim() || '',
+        option_c: row[idx('option_c')]?.trim() || '',
+        option_d: row[idx('option_d')]?.trim() || '',
+        correct_option: (row[idx('correct_option')]?.trim() || '').toUpperCase(),
+        source_name:
+          idx('source_name') >= 0
+            ? row[idx('source_name')]?.trim() || `Tema ${topicNumber}`
+            : `Tema ${topicNumber}`
+      });
+    }
+
+    const topics = [...grouped.values()].sort(
+      (a, b) => a.topic_number - b.topic_number
+    );
+
+    for (const topic of topics) {
+      topic.questions.sort((a: any, b: any) => a.position - b.position);
+    }
+
+    return topics;
+  }
+
+  async importTopicCsvGroups(groups: any[]) {
+    let importedTopics = 0;
+    let importedQuestions = 0;
+    let skippedQuestions = 0;
+
+    for (const group of groups) {
+      // Importante: se resuelve el topic_id por número.
+      // Si el tema ya existe, NO cambiamos su nombre configurado en la plataforma.
+      let { data: topic, error: topicError } = await this.db.client
+        .from('topics')
+        .select('id,number,name')
+        .eq('number', group.topic_number)
+        .maybeSingle();
+
+      if (topicError) throw topicError;
+
+      if (!topic) {
+        const { data: created, error: createError } = await this.db.client
+          .from('topics')
+          .insert({
+            number: group.topic_number,
+            name: group.topic_name || `Tema ${group.topic_number}`,
+            active: true
+          })
+          .select('id,number,name')
+          .single();
+
+        if (createError) throw createError;
+        topic = created;
+        importedTopics++;
+      }
+
+      for (const q of group.questions) {
+        if (!q.statement) continue;
+
+        // Evita duplicar la misma pregunta dentro del mismo tema.
+        const { data: existing, error: existingError } = await this.db.client
+          .from('questions')
+          .select('id')
+          .eq('topic_id', topic.id)
+          .eq('statement', q.statement)
+          .maybeSingle();
+
+        if (existingError) throw existingError;
+
+        if (existing?.id) {
+          skippedQuestions++;
+          continue;
+        }
+
+        const { data: question, error: qError } = await this.db.client
+          .from('questions')
+          .insert({
+            statement: q.statement,
+            topic_id: topic.id,
+            official: true,
+            source_reference: `${q.source_name} · P${q.question_number}`
+          })
+          .select('id')
+          .single();
+
+        if (qError) throw qError;
+
+        const letters = ['A', 'B', 'C', 'D'];
+        if (!letters.includes(q.correct_option)) {
+          await this.db.client.from('questions').delete().eq('id', question.id);
+          throw new Error(
+            `Respuesta correcta inválida en Tema ${group.topic_number}, pregunta ${q.question_number}.`
+          );
+        }
+
+        const optionValues = [
+          q.option_a,
+          q.option_b,
+          q.option_c,
+          q.option_d
+        ];
+
+        const options = optionValues.map((text: string, index: number) => ({
+          question_id: question.id,
+          text,
+          position: index + 1,
+          is_correct: letters[index] === q.correct_option
+        }));
+
+        const { error: optionError } = await this.db.client
+          .from('question_options')
+          .insert(options);
+
+        if (optionError) {
+          await this.db.client.from('questions').delete().eq('id', question.id);
+          throw optionError;
+        }
+
+        importedQuestions++;
+      }
+    }
+
+    return {
+      importedTopics,
+      importedQuestions,
+      skippedQuestions
+    };
+  }
+
   parseOfficialCsv(csvText: string) {
     const rows = this.parseCsv(csvText);
     if (rows.length < 2) throw new Error('El CSV no contiene preguntas.');

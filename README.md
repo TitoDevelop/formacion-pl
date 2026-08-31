@@ -175,6 +175,26 @@ Ejecuta `supabase/migration-v023.sql` después de `migration-v02.sql`.
 Incluye selector EXAMEN/PRÁCTICO para oficiales, ficha de tema con progreso, historial, falladas y descargables, y administración de recursos por tema usando Supabase Storage privado.
 
 
-## V0.2.3 corregida Angular 19
+## V0.2.4 · Importación masiva de preguntas por tema
 
-Corregidos los templates de `official-exam-detail.component.ts` y `topic-detail.component.ts` para no usar aliases `as` dentro de `@else if`.
+El importador CSV admite ahora dos formatos y los detecta automáticamente:
+
+1. `exam_name` -> exámenes oficiales.
+2. `topic_number` -> banco de preguntas clasificado por temas.
+
+En la importación por tema:
+- se busca `topics.id` mediante `topics.number`;
+- si el tema no existe, se crea;
+- cada pregunta se inserta con `questions.topic_id`;
+- las preguntas se marcan como `official = true` porque proceden de recopilaciones de exámenes;
+- se crean las cuatro opciones y se marca `is_correct`;
+- si ya existe el mismo enunciado en el mismo tema, se omite.
+
+No requiere una migración SQL adicional.
+
+Gracias a `topic_id`, las preguntas importadas se utilizan automáticamente en:
+- Crear test personalizado;
+- Ver tests por temas;
+- ficha/progreso del tema;
+- estadísticas por tema;
+- práctica de preguntas falladas del tema.
