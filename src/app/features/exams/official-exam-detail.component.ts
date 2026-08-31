@@ -7,7 +7,7 @@ import { OfficialExam, TestMode } from '../../core/models';
   standalone: true,
   template: `
     @if (loading()) { <div class="panel empty-state">Cargando examen…</div> }
-    @else if (exam(); as e) {
+    @else { @if (exam(); as e) {
       <header class="page-title"><div><span class="eyebrow">EXAMEN OFICIAL</span><h1>{{ e.municipality }} · {{ e.year }}</h1><p>{{ e.name }}</p></div></header>
       <div class="launch-layout">
         <section class="panel official-launch-main">
@@ -24,7 +24,7 @@ import { OfficialExam, TestMode } from '../../core/models';
         </section>
         <aside class="panel official-launch-side"><div class="official-emblem">🏛</div><span class="eyebrow">CONVOCATORIA</span><h2>{{ e.municipality }}</h2><div class="launch-info-row"><span>Año</span><strong>{{ e.year }}</strong></div><div class="launch-info-row"><span>Modalidad</span><strong>{{ mode==='EXAM' ? 'Examen' : 'Práctica' }}</strong></div></aside>
       </div>
-    }
+    } }
   `
 })
 export class OfficialExamDetailComponent implements OnInit {
