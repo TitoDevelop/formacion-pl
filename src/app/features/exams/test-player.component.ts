@@ -1,5 +1,6 @@
 import { Component, OnInit, computed, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
+import { AuthService } from '../../core/auth.service';
 import { DataService } from '../../core/data.service';
 import { Question, QuestionOption, TestMode } from '../../core/models';
 
@@ -20,7 +21,10 @@ type PlayerSource = 'CUSTOM' | 'REVIEW' | 'FAILED_TOPIC';
           <span class="eyebrow">{{ mode() === 'PRACTICE' ? 'MODO PRÁCTICA' : 'MODO EXAMEN' }}</span>
           <h1>{{ title() }}</h1>
         </div>
-        <div class="progress-text">{{ currentIndex()+1 }} / {{ questions().length }}</div>
+        <div class="exam-progress-actions">
+          <div class="progress-text">{{ currentIndex()+1 }} / {{ questions().length }}</div>
+          <button class="btn test-exit-button" type="button" (click)="showExitDialog.set(true)">Salir</button>
+        </div>
       </div>
 
       <div class="progress"><div [style.width.%]="progress()"></div></div>
@@ -87,6 +91,21 @@ type PlayerSource = 'CUSTOM' | 'REVIEW' | 'FAILED_TOPIC';
           }
         </div>
       }
+
+      @if (showExitDialog()) {
+        <div class="mode-picker-backdrop" (click)="showExitDialog.set(false)">
+          <section class="panel mode-picker exit-test-dialog" role="dialog" aria-modal="true" aria-labelledby="exit-test-title" (click)="$event.stopPropagation()">
+            <button class="mode-picker-close" type="button" aria-label="Cerrar" (click)="showExitDialog.set(false)">×</button>
+            <span class="eyebrow">TEST EN CURSO</span>
+            <h2 id="exit-test-title">¿Quieres guardar tu progreso?</h2>
+            <p>Has llegado a la pregunta {{currentIndex()+1}} de {{questions().length}}. Podrás continuar este mismo test más adelante.</p>
+            <div class="exit-test-actions">
+              <button class="btn danger" type="button" (click)="exitAndDelete()">Salir y eliminar</button>
+              <button class="btn primary" type="button" (click)="exitAndSave()">Salir y guardar</button>
+            </div>
+          </section>
+        </div>
+      }
     }
   `
 })
@@ -99,6 +118,7 @@ export class TestPlayerComponent implements OnInit {
   loading = signal(true);
   submitting = signal(false);
   error = signal('');
+  showExitDialog = signal(false);
   mode = signal<TestMode>('EXAM');
   title = signal('Test personalizado');
   source = signal<PlayerSource>('CUSTOM');
@@ -115,7 +135,8 @@ export class TestPlayerComponent implements OnInit {
   constructor(
     private route: ActivatedRoute,
     private router: Router,
-    private data: DataService
+    private data: DataService,
+    private auth: AuthService
   ) {}
 
   async ngOnInit() {
@@ -127,6 +148,20 @@ export class TestPlayerComponent implements OnInit {
 
       this.source.set(source);
       this.mode.set(mode === 'PRACTICE' ? 'PRACTICE' : 'EXAM');
+
+      const draft = this.readDraft();
+      if (draft) {
+        this.source.set(draft.source);
+        this.mode.set(draft.mode);
+        this.title.set(draft.title);
+        this.topicIds = draft.topicIds;
+        this.questions.set(draft.questions);
+        this.currentIndex.set(Math.min(draft.currentIndex, Math.max(0, draft.questions.length - 1)));
+        this.selected.set(draft.selected);
+        this.answered.set(new Set(draft.answered));
+        this.marked.set(await this.data.reviewQuestionIds(draft.questions.map(q => q.id)));
+        return;
+      }
 
       let questions: Question[] = [];
 
@@ -207,6 +242,26 @@ export class TestPlayerComponent implements OnInit {
     if (this.currentIndex() > 0) this.currentIndex.update(i => i - 1);
   }
 
+  async exitAndSave() {
+    localStorage.setItem(this.draftKey(), JSON.stringify({
+      source: this.source(),
+      mode: this.mode(),
+      title: this.title(),
+      topicIds: this.topicIds,
+      questions: this.questions(),
+      currentIndex: this.currentIndex(),
+      selected: this.selected(),
+      answered: [...this.answered()],
+      savedAt: new Date().toISOString()
+    }));
+    await this.leavePlayer();
+  }
+
+  async exitAndDelete() {
+    this.deleteDraft();
+    await this.leavePlayer();
+  }
+
   async finish() {
     if (this.mode() === 'EXAM' && !confirm('¿Finalizar el test y ver el resultado?')) return;
 
@@ -233,9 +288,38 @@ export class TestPlayerComponent implements OnInit {
         payload
       );
 
+      this.deleteDraft();
       await this.router.navigate(['/app/resultado', attemptId]);
     } finally {
       this.submitting.set(false);
     }
+  }
+
+  private readDraft(): any | null {
+    try {
+      const raw = localStorage.getItem(this.draftKey());
+      if (!raw) return null;
+      const draft = JSON.parse(raw);
+      return Array.isArray(draft?.questions) && draft.questions.length ? draft : null;
+    } catch {
+      this.deleteDraft();
+      return null;
+    }
+  }
+
+  private deleteDraft() {
+    localStorage.removeItem(this.draftKey());
+  }
+
+  private draftKey() {
+    const userId = this.auth.user()?.id ?? 'anonymous';
+    return `alpha-test-draft:${userId}:${this.router.url}`;
+  }
+
+  private leavePlayer() {
+    this.showExitDialog.set(false);
+    return this.topicIds.length === 1 && this.source() === 'CUSTOM'
+      ? this.router.navigate(['/app/temas', this.topicIds[0]])
+      : this.router.navigate(['/app/tests']);
   }
 }

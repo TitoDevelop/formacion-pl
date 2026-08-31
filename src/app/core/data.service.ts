@@ -87,18 +87,29 @@ export class DataService {
   async getCustomQuestions(topicIds: string[], count?: number): Promise<Question[]> {
     if (!topicIds.length) return [];
 
-    const { data, error } = await this.db.client
-      .from('questions')
-      .select(`
-        id, statement, explanation, topic_id, official, source_reference,
-        question_options (id, question_id, text, position, is_correct)
-      `)
-      .in('topic_id', topicIds)
-      .limit(1000);
+    const pageSize = 1000;
+    const loaded: Question[] = [];
+    let from = 0;
 
-    if (error) throw error;
+    do {
+      const { data, error } = await this.db.client
+        .from('questions')
+        .select(`
+          id, statement, explanation, topic_id, official, source_reference,
+          question_options (id, question_id, text, position, is_correct)
+        `)
+        .in('topic_id', topicIds)
+        .range(from, from + pageSize - 1);
 
-    const questions = this.shuffle((data ?? []) as Question[]);
+      if (error) throw error;
+
+      const page = (data ?? []) as Question[];
+      loaded.push(...page);
+      from += page.length;
+      if (page.length < pageSize) break;
+    } while (count === undefined);
+
+    const questions = this.shuffle(loaded);
     return count === undefined ? questions : questions.slice(0, count);
   }
 
