@@ -82,11 +82,21 @@ create table if not exists public.test_attempt_answers (
   unique(attempt_id, question_id)
 );
 
+create table if not exists public.test_drafts (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  draft_key text not null,
+  payload jsonb not null,
+  updated_at timestamptz not null default now(),
+  unique(user_id, draft_key)
+);
+
 create index if not exists idx_questions_topic on public.questions(topic_id);
 create index if not exists idx_exams_municipality_year on public.official_exams(municipality, year);
 create index if not exists idx_attempts_user_finished on public.test_attempts(user_id, finished_at desc);
 create index if not exists idx_attempt_answers_attempt on public.test_attempt_answers(attempt_id);
 create index if not exists idx_attempt_answers_question on public.test_attempt_answers(question_id);
+create index if not exists idx_test_drafts_user_updated on public.test_drafts(user_id, updated_at desc);
 
 -- Perfil automático al registrarse
 create or replace function public.handle_new_user()
@@ -129,6 +139,7 @@ alter table public.official_exams enable row level security;
 alter table public.official_exam_questions enable row level security;
 alter table public.test_attempts enable row level security;
 alter table public.test_attempt_answers enable row level security;
+alter table public.test_drafts enable row level security;
 
 -- Limpiar políticas si vuelves a ejecutar
 drop policy if exists "profiles own select" on public.profiles;
@@ -148,6 +159,10 @@ drop policy if exists "attempts own insert" on public.test_attempts;
 drop policy if exists "attempts own update" on public.test_attempts;
 drop policy if exists "answers own select" on public.test_attempt_answers;
 drop policy if exists "answers own insert" on public.test_attempt_answers;
+drop policy if exists "test drafts own select" on public.test_drafts;
+drop policy if exists "test drafts own insert" on public.test_drafts;
+drop policy if exists "test drafts own update" on public.test_drafts;
+drop policy if exists "test drafts own delete" on public.test_drafts;
 
 create policy "profiles own select" on public.profiles
 for select to authenticated using (id = auth.uid());
@@ -198,3 +213,12 @@ for insert to authenticated with check (
     where a.id = attempt_id and a.user_id = auth.uid()
   )
 );
+
+create policy "test drafts own select" on public.test_drafts
+for select to authenticated using (user_id = auth.uid());
+create policy "test drafts own insert" on public.test_drafts
+for insert to authenticated with check (user_id = auth.uid());
+create policy "test drafts own update" on public.test_drafts
+for update to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
+create policy "test drafts own delete" on public.test_drafts
+for delete to authenticated using (user_id = auth.uid());

@@ -185,6 +185,50 @@ export class DataService {
     }
   }
 
+  async getTestDraft<T>(draftKey: string): Promise<T | null> {
+    const userId = this.auth.user()?.id;
+    if (!userId) return null;
+
+    const { data, error } = await this.db.client
+      .from('test_drafts')
+      .select('payload')
+      .eq('user_id', userId)
+      .eq('draft_key', draftKey)
+      .maybeSingle();
+
+    if (error) throw error;
+    return (data?.payload as T | undefined) ?? null;
+  }
+
+  async saveTestDraft(draftKey: string, payload: unknown): Promise<void> {
+    const userId = this.auth.user()?.id;
+    if (!userId) throw new Error('No hay sesiÃ³n activa.');
+
+    const { error } = await this.db.client
+      .from('test_drafts')
+      .upsert({
+        user_id: userId,
+        draft_key: draftKey,
+        payload,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'user_id,draft_key' });
+
+    if (error) throw error;
+  }
+
+  async deleteTestDraft(draftKey: string): Promise<void> {
+    const userId = this.auth.user()?.id;
+    if (!userId) return;
+
+    const { error } = await this.db.client
+      .from('test_drafts')
+      .delete()
+      .eq('user_id', userId)
+      .eq('draft_key', draftKey);
+
+    if (error) throw error;
+  }
+
   async finishAttempt(
     examId: string | null,
     attemptType: 'OFFICIAL' | 'TOPIC' | 'MISTAKES' | 'CUSTOM',
@@ -351,6 +395,37 @@ export class DataService {
 
     const latest = new Map<string, { correct: boolean; answered_at: string }>();
     for (const ans of answers ?? []) latest.set(ans.question_id, { correct: ans.is_correct, answered_at: ans.answered_at });
+
+    const { data: drafts, error: draftError } = await this.db.client
+      .from('test_drafts')
+      .select('payload,updated_at')
+      .eq('user_id', userId);
+    if (draftError) throw draftError;
+
+    for (const row of drafts ?? []) {
+      const draft = row.payload as {
+        topicIds?: string[];
+        questions?: Question[];
+        selected?: Record<string, string>;
+        answered?: string[];
+      };
+
+      if (!draft.topicIds?.includes(topicId) || !Array.isArray(draft.questions) || !draft.selected) continue;
+
+      const answeredDraftIds = new Set([
+        ...(draft.answered ?? []),
+        ...Object.keys(draft.selected)
+      ]);
+
+      for (const q of draft.questions) {
+        if (q.topic_id !== topicId || !answeredDraftIds.has(q.id)) continue;
+
+        const selectedOptionId = draft.selected[q.id];
+        const correct = q.question_options?.some(o => o.id === selectedOptionId && o.is_correct) ?? false;
+        latest.set(q.id, { correct, answered_at: row.updated_at });
+      }
+    }
+
     const answeredQuestions = latest.size;
     const correctAnswers = [...latest.values()].filter(x => x.correct).length;
     const wrongAnswers = answeredQuestions - correctAnswers;

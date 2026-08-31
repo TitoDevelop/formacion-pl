@@ -1,6 +1,5 @@
 import { Component, OnInit, computed, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { AuthService } from '../../core/auth.service';
 import { DataService } from '../../core/data.service';
 import { Question, QuestionOption, TestMode } from '../../core/models';
 
@@ -145,8 +144,7 @@ export class TestPlayerComponent implements OnInit {
   constructor(
     private route: ActivatedRoute,
     private router: Router,
-    private data: DataService,
-    private auth: AuthService
+    private data: DataService
   ) {}
 
   async ngOnInit() {
@@ -159,7 +157,7 @@ export class TestPlayerComponent implements OnInit {
       this.source.set(source);
       this.mode.set(mode === 'PRACTICE' ? 'PRACTICE' : 'EXAM');
 
-      const draft = this.readDraft();
+      const draft = await this.readDraft();
       if (draft) {
         this.source.set(draft.source);
         this.mode.set(draft.mode);
@@ -253,7 +251,7 @@ export class TestPlayerComponent implements OnInit {
   }
 
   async exitAndSave() {
-    localStorage.setItem(this.draftKey(), JSON.stringify({
+    await this.data.saveTestDraft(this.draftKey(), {
       source: this.source(),
       mode: this.mode(),
       title: this.title(),
@@ -263,12 +261,12 @@ export class TestPlayerComponent implements OnInit {
       selected: this.selected(),
       answered: [...this.answered()],
       savedAt: new Date().toISOString()
-    }));
+    });
     await this.leavePlayer();
   }
 
   async exitAndDelete() {
-    this.deleteDraft();
+    await this.deleteDraft();
     await this.leavePlayer();
   }
 
@@ -298,18 +296,17 @@ export class TestPlayerComponent implements OnInit {
         payload
       );
 
-      this.deleteDraft();
+      await this.deleteDraft();
       await this.router.navigate(['/app/resultado', attemptId]);
     } finally {
       this.submitting.set(false);
     }
   }
 
-  private readDraft(): TestDraft | null {
+  private async readDraft(): Promise<TestDraft | null> {
     try {
-      const raw = localStorage.getItem(this.draftKey());
-      if (!raw) return null;
-      const draft = JSON.parse(raw) as Partial<TestDraft>;
+      const draft = await this.data.getTestDraft<Partial<TestDraft>>(this.draftKey());
+      if (!draft) return null;
       if (
         !draft.source ||
         !draft.mode ||
@@ -325,18 +322,21 @@ export class TestPlayerComponent implements OnInit {
       }
       return draft as TestDraft;
     } catch {
-      this.deleteDraft();
+      try {
+        await this.deleteDraft();
+      } catch {
+        // Si el borrador no se puede limpiar, no impedimos que el test arranque.
+      }
       return null;
     }
   }
 
   private deleteDraft() {
-    localStorage.removeItem(this.draftKey());
+    return this.data.deleteTestDraft(this.draftKey());
   }
 
   private draftKey() {
-    const userId = this.auth.user()?.id ?? 'anonymous';
-    return `alpha-test-draft:${userId}:${this.router.url}`;
+    return this.router.url;
   }
 
   private leavePlayer() {
