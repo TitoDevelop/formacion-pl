@@ -7,7 +7,7 @@ import { AuthService } from '../core/auth.service';
   imports: [RouterOutlet, RouterLink, RouterLinkActive],
   template: `
     <div class="app-frame">
-      <aside class="sidebar">
+      <aside class="sidebar" [class.mobile-open]="menuOpen">
         <a class="brand brand-logo" routerLink="/app/dashboard">
           <img src="/alpha-logo.png" alt="Alpha Formación">
           <span class="brand-copy">
@@ -17,17 +17,17 @@ import { AuthService } from '../core/auth.service';
         </a>
 
         <nav>
-          <a routerLink="/app/dashboard" routerLinkActive="active">⌂ <span>Inicio</span></a>
-          <a routerLink="/app/crear-test" routerLinkActive="active">＋ <span>Crear test personalizado</span></a>
-          <a routerLink="/app/tests" routerLinkActive="active">▣ <span>Ver tests</span></a>
-          <a routerLink="/app/repasar" routerLinkActive="active">★ <span>Preguntas para repasar</span></a>
-          <a routerLink="/app/falladas" routerLinkActive="active">↻ <span>Preguntas falladas</span></a>
+          <a routerLink="/app/dashboard" routerLinkActive="active" (click)="closeMenu()">⌂ <span>Inicio</span></a>
+          <a routerLink="/app/crear-test" routerLinkActive="active" (click)="closeMenu()">＋ <span>Crear test personalizado</span></a>
+          <a routerLink="/app/tests" routerLinkActive="active" (click)="closeMenu()">▣ <span>Ver tests</span></a>
+          <a routerLink="/app/repasar" routerLinkActive="active" (click)="closeMenu()">★ <span>Preguntas para repasar</span></a>
+          <a routerLink="/app/falladas" routerLinkActive="active" (click)="closeMenu()">↻ <span>Preguntas falladas</span></a>
 
           @if (isAdmin()) {
             <div class="nav-label">ADMINISTRACIÓN</div>
-            <a routerLink="/admin/alumnos" routerLinkActive="active">♟ <span>Control de alumnos</span></a>
-            <a routerLink="/admin/importar" routerLinkActive="active">⇧ <span>Importar exámenes</span></a>
-            <a routerLink="/admin/recursos" routerLinkActive="active">▤ <span>Recursos por tema</span></a>
+            <a routerLink="/admin/alumnos" routerLinkActive="active" (click)="closeMenu()">♟ <span>Control de alumnos</span></a>
+            <a routerLink="/admin/importar" routerLinkActive="active" (click)="closeMenu()">⇧ <span>Importar exámenes</span></a>
+            <a routerLink="/admin/recursos" routerLinkActive="active" (click)="closeMenu()">▤ <span>Recursos por tema</span></a>
           }
         </nav>
 
@@ -43,8 +43,16 @@ import { AuthService } from '../core/auth.service';
         </div>
       </aside>
 
+      @if (menuOpen) {
+        <button class="mobile-menu-backdrop" type="button" aria-label="Cerrar menú" (click)="closeMenu()"></button>
+      }
+
       <section class="main-area">
         <header class="mobile-top">
+          <button class="hamburger" type="button" [attr.aria-expanded]="menuOpen"
+            aria-label="Abrir menú de navegación" (click)="menuOpen = !menuOpen">
+            <span></span><span></span><span></span>
+          </button>
           <a class="mobile-brand" routerLink="/app/dashboard">
             <img src="/alpha-logo.png" alt="Alpha Formación">
             <strong>ALPHA</strong>
@@ -60,6 +68,7 @@ import { AuthService } from '../core/auth.service';
   `
 })
 export class AppShellComponent {
+  menuOpen = false;
   isAdmin = computed(() => this.auth.profile()?.role === 'ADMIN');
 
   initials = computed(() => {
@@ -73,6 +82,10 @@ export class AppShellComponent {
   });
 
   constructor(public auth: AuthService, private router: Router) {}
+
+  closeMenu() {
+    this.menuOpen = false;
+  }
 
   async logout() {
     await this.auth.logout();
