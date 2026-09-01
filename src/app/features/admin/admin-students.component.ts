@@ -50,7 +50,19 @@ import { DataService } from '../../core/data.service';
               <tr>
                 <td><strong>{{ s.full_name || 'Sin nombre' }}</strong></td>
                 <td>{{ s.email || '—' }}</td>
-                <td><span class="role-pill" [class.admin]="s.role==='ADMIN'">{{ s.role }}</span></td>
+                <td>
+                  <select
+                    class="role-select"
+                    [class.admin]="s.role==='ADMIN'"
+                    [ngModel]="s.role"
+                    [disabled]="s.id === auth.user()?.id || changingRoles().has(s.id)"
+                    [attr.aria-label]="'Rol de ' + (s.full_name || s.email || 'usuario')"
+                    (ngModelChange)="changeRole(s, $event)">
+                    <option value="STUDENT">Alumno</option>
+                    <option value="ADMIN">Administrador</option>
+                  </select>
+                  @if (s.id === auth.user()?.id) { <small class="own-role-note">Tu cuenta</small> }
+                </td>
                 <td>
                   <span class="access-pill" [class.on]="s.access_enabled || s.role==='ADMIN'">
                     {{ s.access_enabled || s.role==='ADMIN' ? 'Habilitado' : 'Pendiente / bloqueado' }}
@@ -81,6 +93,7 @@ export class AdminStudentsComponent implements OnInit {
   students = signal<any[]>([]);
   search = signal('');
   error = signal('');
+  changingRoles = signal<Set<string>>(new Set());
 
   filtered = computed(() => {
     const q = this.search().trim().toLowerCase();
@@ -131,6 +144,28 @@ export class AdminStudentsComponent implements OnInit {
       );
     } catch (e: any) {
       this.error.set(e?.message ?? 'No se pudo cambiar el permiso.');
+    }
+  }
+
+  async changeRole(student: any, role: 'STUDENT' | 'ADMIN') {
+    if (student.id === this.auth.user()?.id || role === student.role) return;
+
+    this.changingRoles.update(ids => new Set(ids).add(student.id));
+    this.error.set('');
+
+    try {
+      await this.data.adminSetRole(student.id, role);
+      this.students.update(list =>
+        list.map(s => s.id === student.id ? { ...s, role } : s)
+      );
+    } catch (e: any) {
+      this.error.set(e?.message ?? 'No se pudo cambiar el rol.');
+    } finally {
+      this.changingRoles.update(ids => {
+        const next = new Set(ids);
+        next.delete(student.id);
+        return next;
+      });
     }
   }
 }

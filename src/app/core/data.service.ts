@@ -10,6 +10,7 @@ import {
   UniversalQuestion
 } from './models';
 import { SupabaseService } from './supabase.service';
+import { AttemptTiming } from './test-timer';
 
 @Injectable({ providedIn: 'root' })
 export class DataService {
@@ -235,7 +236,8 @@ export class DataService {
     mode: TestMode,
     title: string,
     topicIds: string[] | null,
-    questions: { questionId: string; selectedOptionId: string | null; correct: boolean }[]
+    questions: { questionId: string; selectedOptionId: string | null; correct: boolean }[],
+    timing: AttemptTiming
   ): Promise<string> {
     const userId = this.auth.user()?.id;
     if (!userId) throw new Error('No hay sesión activa.');
@@ -256,7 +258,9 @@ export class DataService {
         mode,
         title,
         topic_ids: topicIds,
-        finished_at: new Date().toISOString(),
+        started_at: timing.startedAt,
+        finished_at: timing.finishedAt,
+        duration_seconds: timing.durationSeconds,
         total_questions: questions.length,
         correct_answers: correct,
         wrong_answers: wrong,
@@ -302,7 +306,7 @@ export class DataService {
 
     const { data, error } = await this.db.client
       .from('test_attempts')
-      .select('id,title,mode,total_questions,correct_answers,wrong_answers,score,finished_at')
+      .select('id,title,mode,total_questions,correct_answers,wrong_answers,score,finished_at,duration_seconds')
       .gte('finished_at', from)
       .order('finished_at', { ascending: false });
 
@@ -359,6 +363,15 @@ export class DataService {
     if (error) throw error;
   }
 
+  async adminSetRole(profileId: string, role: 'STUDENT' | 'ADMIN') {
+    const { error } = await this.db.client
+      .from('profiles')
+      .update({ role })
+      .eq('id', profileId);
+
+    if (error) throw error;
+  }
+
 
   async getTopic(topicId: string): Promise<Topic> {
     const { data, error } = await this.db.client.from('topics')
@@ -380,7 +393,7 @@ export class DataService {
 
     const { data: attempts, error: aError } = await this.db.client
       .from('test_attempts')
-      .select('id,title,mode,total_questions,correct_answers,wrong_answers,blank_answers,score,finished_at,topic_ids')
+      .select('id,title,mode,total_questions,correct_answers,wrong_answers,blank_answers,score,finished_at,duration_seconds,topic_ids')
       .eq('user_id', userId).contains('topic_ids', [topicId])
       .order('finished_at', { ascending: false }).limit(30);
     if (aError) throw aError;
@@ -398,10 +411,12 @@ export class DataService {
 
     const { data: drafts, error: draftError } = await this.db.client
       .from('test_drafts')
-      .select('payload,updated_at')
-      .eq('user_id', userId);
+      .select('draft_key,payload,updated_at')
+      .eq('user_id', userId)
+      .order('updated_at', { ascending: false });
     if (draftError) throw draftError;
 
+    let draftKey: string | null = null;
     for (const row of drafts ?? []) {
       const draft = row.payload as {
         topicIds?: string[];
@@ -409,6 +424,10 @@ export class DataService {
         selected?: Record<string, string>;
         answered?: string[];
       };
+
+      if (!draftKey && draft.topicIds?.includes(topicId) && Array.isArray(draft.questions)) {
+        draftKey = row.draft_key;
+      }
 
       if (!draft.topicIds?.includes(topicId) || !Array.isArray(draft.questions) || !draft.selected) continue;
 
@@ -436,6 +455,7 @@ export class DataService {
       accuracy: answeredQuestions ? Math.round(correctAnswers / answeredQuestions * 100) : 0,
       completion: totalQuestions ? Math.min(100, Math.round(answeredQuestions / totalQuestions * 100)) : 0,
       failedQuestionIds,
+      draftKey,
       attempts: attempts ?? []
     };
   }

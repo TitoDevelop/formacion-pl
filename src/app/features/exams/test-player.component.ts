@@ -1,7 +1,8 @@
-import { Component, OnInit, computed, signal } from '@angular/core';
+import { Component, OnDestroy, OnInit, computed, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { DataService } from '../../core/data.service';
 import { Question, QuestionOption, TestMode } from '../../core/models';
+import { TestTimer, TimerResumeState, formatDuration } from '../../core/test-timer';
 
 type PlayerSource = 'CUSTOM' | 'REVIEW' | 'FAILED_TOPIC';
 type TestDraft = {
@@ -13,6 +14,7 @@ type TestDraft = {
   currentIndex: number;
   selected: Record<string, string>;
   answered: string[];
+  timerState?: TimerResumeState;
 };
 
 @Component({
@@ -31,6 +33,7 @@ type TestDraft = {
           <h1>{{ title() }}</h1>
         </div>
         <div class="exam-progress-actions">
+          <div class="test-timer" aria-label="Tiempo transcurrido">⏱ {{ formatTime(timer.elapsedSeconds()) }}</div>
           <div class="progress-text">{{ currentIndex()+1 }} / {{ questions().length }}</div>
           <button class="btn test-exit-button" type="button" (click)="showExitDialog.set(true)">Salir</button>
         </div>
@@ -118,7 +121,8 @@ type TestDraft = {
     }
   `
 })
-export class TestPlayerComponent implements OnInit {
+export class TestPlayerComponent implements OnInit, OnDestroy {
+  readonly timer = new TestTimer();
   questions = signal<Question[]>([]);
   currentIndex = signal(0);
   selected = signal<Record<string, string>>({});
@@ -168,6 +172,7 @@ export class TestPlayerComponent implements OnInit {
         this.selected.set(draft.selected);
         this.answered.set(new Set(draft.answered));
         this.marked.set(await this.data.reviewQuestionIds(draft.questions.map(q => q.id)));
+        this.timer.start(this.router.url, draft.timerState);
         return;
       }
 
@@ -189,11 +194,20 @@ export class TestPlayerComponent implements OnInit {
 
       this.questions.set(questions);
       this.marked.set(await this.data.reviewQuestionIds(questions.map(q => q.id)));
+      if (questions.length) this.timer.start(this.router.url);
     } catch (e: any) {
       this.error.set(e?.message ?? 'No se pudo preparar el test.');
     } finally {
       this.loading.set(false);
     }
+  }
+
+  ngOnDestroy() {
+    this.timer.stop();
+  }
+
+  formatTime(seconds: number) {
+    return formatDuration(seconds);
   }
 
   sortedOptions(q: Question): QuestionOption[] {
@@ -251,22 +265,30 @@ export class TestPlayerComponent implements OnInit {
   }
 
   async exitAndSave() {
-    await this.data.saveTestDraft(this.draftKey(), {
-      source: this.source(),
-      mode: this.mode(),
-      title: this.title(),
-      topicIds: this.topicIds,
-      questions: this.questions(),
-      currentIndex: this.currentIndex(),
-      selected: this.selected(),
-      answered: [...this.answered()],
-      savedAt: new Date().toISOString()
-    });
-    await this.leavePlayer();
+    const timerState = this.timer.pause();
+    try {
+      await this.data.saveTestDraft(this.draftKey(), {
+        source: this.source(),
+        mode: this.mode(),
+        title: this.title(),
+        topicIds: this.topicIds,
+        questions: this.questions(),
+        currentIndex: this.currentIndex(),
+        selected: this.selected(),
+        answered: [...this.answered()],
+        timerState,
+        savedAt: new Date().toISOString()
+      });
+      await this.leavePlayer();
+    } catch (error) {
+      this.timer.start(this.router.url, timerState);
+      throw error;
+    }
   }
 
   async exitAndDelete() {
     await this.deleteDraft();
+    this.timer.clear();
     await this.leavePlayer();
   }
 
@@ -287,16 +309,19 @@ export class TestPlayerComponent implements OnInit {
         };
       });
 
+      const timing = this.timer.snapshot();
       const attemptId = await this.data.finishAttempt(
         null,
         this.source() === 'REVIEW' || this.source() === 'FAILED_TOPIC' ? 'MISTAKES' : 'CUSTOM',
         this.mode(),
         this.title(),
         this.source() === 'CUSTOM' ? this.topicIds : null,
-        payload
+        payload,
+        timing
       );
 
       await this.deleteDraft();
+      this.timer.clear();
       await this.router.navigate(['/app/resultado', attemptId]);
     } finally {
       this.submitting.set(false);

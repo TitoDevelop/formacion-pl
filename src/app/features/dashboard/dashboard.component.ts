@@ -3,6 +3,7 @@ import { Component, OnInit, computed, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { AuthService } from '../../core/auth.service';
 import { DataService } from '../../core/data.service';
+import { formatDuration } from '../../core/test-timer';
 
 @Component({
   standalone: true,
@@ -46,6 +47,7 @@ import { DataService } from '../../core/data.service';
               <div>
                 <strong>{{ a.title || (a.total_questions + ' preguntas') }}</strong>
                 <span>{{ a.finished_at | date:'dd/MM/yyyy HH:mm' }} · {{ a.mode === 'PRACTICE' ? 'Práctico' : 'Examen' }}</span>
+                @if (a.duration_seconds != null) { <span class="attempt-duration">⏱ {{ formatTime(a.duration_seconds) }}</span> }
               </div>
               <div class="score-pill">{{ a.score }}/10</div>
             </div>
@@ -94,5 +96,9 @@ export class DashboardComponent implements OnInit {
     } finally {
       this.loading.set(false);
     }
+  }
+
+  formatTime(seconds: number) {
+    return formatDuration(seconds);
   }
 }
