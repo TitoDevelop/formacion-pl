@@ -68,7 +68,6 @@ import { TestTimer, formatDuration } from '../../core/test-timer';
 
         <div class="exam-nav">
           <button class="btn" (click)="prev()" [disabled]="currentIndex()===0">← Anterior</button>
-          <button class="btn danger test-exit-button" type="button" (click)="showExitDialog.set(true)">Salir y eliminar</button>
 
           @if (currentIndex() < questions().length - 1) {
             <button

@@ -174,7 +174,10 @@ export class DataService {
     if (marked) {
       const { error } = await this.db.client
         .from('user_review_questions')
-        .upsert({ user_id: userId, question_id: questionId });
+        .upsert(
+          { user_id: userId, question_id: questionId },
+          { onConflict: 'user_id,question_id', ignoreDuplicates: true }
+        );
       if (error) throw error;
     } else {
       const { error } = await this.db.client
