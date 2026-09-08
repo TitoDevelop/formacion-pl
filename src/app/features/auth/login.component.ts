@@ -3,6 +3,8 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { AuthService } from '../../core/auth.service';
 
+type AuthMode = 'login' | 'register' | 'forgot';
+
 @Component({
   standalone: true,
   imports: [FormsModule],
@@ -28,14 +30,14 @@ import { AuthService } from '../../core/auth.service';
 
         <section class="auth-card">
           <div class="auth-card-heading">
-            <span class="eyebrow">{{ mode === 'login' ? 'ACCESO ALUMNOS' : 'NUEVA CUENTA' }}</span>
-            <h2>{{ mode === 'login' ? 'Bienvenido de nuevo' : 'Crear cuenta' }}</h2>
-            <p>{{ mode === 'login' ? 'Accede a tu zona de preparación.' : 'Tu acceso deberá ser validado por un administrador.' }}</p>
+            <span class="eyebrow">{{ headingEyebrow }}</span>
+            <h2>{{ headingTitle }}</h2>
+            <p>{{ headingText }}</p>
           </div>
 
           <div class="tabs">
-            <button [class.active]="mode==='login'" (click)="mode='login'">Acceder</button>
-            <button [class.active]="mode==='register'" (click)="mode='register'">Crear cuenta</button>
+            <button [class.active]="mode==='login'" (click)="setMode('login')">Acceder</button>
+            <button [class.active]="mode==='register'" (click)="setMode('register')">Crear cuenta</button>
           </div>
 
           @if (mode === 'register') {
@@ -46,24 +48,32 @@ import { AuthService } from '../../core/auth.service';
           <label>Email</label>
           <input type="email" [(ngModel)]="email" placeholder="nombre@email.com">
 
-          <label>Contraseña</label>
-          <input type="password" [(ngModel)]="password" placeholder="Mínimo 6 caracteres">
+          @if (mode !== 'forgot') {
+            <label>Contraseña</label>
+            <input type="password" [(ngModel)]="password" placeholder="Mínimo 6 caracteres">
+          }
 
           @if (error) { <div class="form-error">{{ error }}</div> }
           @if (info) { <div class="form-info">{{ info }}</div> }
 
           <button class="btn primary wide auth-submit" (click)="submit()" [disabled]="loading">
-            {{ loading ? 'Procesando…' : (mode === 'login' ? 'ENTRAR EN ALPHA' : 'CREAR CUENTA') }}
+            {{ submitText }}
           </button>
 
-          <div class="auth-security">Acceso protegido · Supabase Auth</div>
+          @if (mode === 'login') {
+            <button class="text-button auth-secondary-action" (click)="setMode('forgot')">He olvidado mi contraseña</button>
+          } @else if (mode === 'forgot') {
+            <button class="text-button auth-secondary-action" (click)="setMode('login')">Volver al acceso</button>
+          }
+
+          <div class="auth-security">Acceso protegido - Supabase Auth</div>
         </section>
       </div>
     </div>
   `
 })
 export class LoginComponent {
-  mode: 'login' | 'register' = 'login';
+  mode: AuthMode = 'login';
   email = '';
   password = '';
   fullName = '';
@@ -73,6 +83,37 @@ export class LoginComponent {
 
   constructor(private auth: AuthService, private router: Router) {}
 
+  get headingEyebrow(): string {
+    if (this.mode === 'register') return 'NUEVA CUENTA';
+    if (this.mode === 'forgot') return 'RECUPERAR ACCESO';
+    return 'ACCESO ALUMNOS';
+  }
+
+  get headingTitle(): string {
+    if (this.mode === 'register') return 'Crear cuenta';
+    if (this.mode === 'forgot') return 'Restablecer contraseña';
+    return 'Bienvenido de nuevo';
+  }
+
+  get headingText(): string {
+    if (this.mode === 'register') return 'Tu acceso deberá ser validado por un administrador.';
+    if (this.mode === 'forgot') return 'Te enviaremos un email para crear una contraseña nueva.';
+    return 'Accede a tu zona de preparación.';
+  }
+
+  get submitText(): string {
+    if (this.loading) return 'Procesando...';
+    if (this.mode === 'register') return 'CREAR CUENTA';
+    if (this.mode === 'forgot') return 'ENVIAR EMAIL';
+    return 'ENTRAR EN ALPHA';
+  }
+
+  setMode(mode: AuthMode) {
+    this.mode = mode;
+    this.error = '';
+    this.info = '';
+  }
+
   async submit() {
     this.loading = true;
     this.error = '';
@@ -80,6 +121,11 @@ export class LoginComponent {
 
     try {
       if (this.mode === 'login') {
+        if (!this.email || !this.password) {
+          this.error = 'Introduce tu email y contraseña.';
+          return;
+        }
+
         await this.auth.login(this.email, this.password);
 
         if (!this.auth.hasAccess()) {
@@ -88,7 +134,20 @@ export class LoginComponent {
         }
 
         await this.router.navigate(['/app/dashboard']);
+      } else if (this.mode === 'forgot') {
+        if (!this.email) {
+          this.error = 'Introduce tu email para enviarte el enlace.';
+          return;
+        }
+
+        await this.auth.requestPasswordReset(this.email);
+        this.info = 'Te hemos enviado un email con el enlace para restablecer tu contraseña.';
       } else {
+        if (!this.email || !this.password || !this.fullName) {
+          this.error = 'Completa nombre, email y contraseña.';
+          return;
+        }
+
         const result = await this.auth.register(this.email, this.password, this.fullName);
 
         if (result.data.session) {
@@ -98,9 +157,43 @@ export class LoginComponent {
         }
       }
     } catch (e: any) {
-      this.error = e?.message ?? 'No se pudo completar la operación.';
+      this.error = this.getFriendlyError(e);
     } finally {
       this.loading = false;
     }
+  }
+
+  private getFriendlyError(error: any): string {
+    const message = String(error?.message ?? '').toLowerCase();
+
+    if (message.includes('invalid login credentials')) {
+      return 'Email o contraseña incorrectos.';
+    }
+
+    if (message.includes('email not confirmed')) {
+      return 'Debes confirmar tu email antes de acceder.';
+    }
+
+    if (message.includes('invalid email') || message.includes('email address is invalid')) {
+      return 'Introduce un email válido.';
+    }
+
+    if (message.includes('password should be at least') || message.includes('password must be at least')) {
+      return 'La contraseña debe tener al menos 6 caracteres.';
+    }
+
+    if (message.includes('weak password')) {
+      return 'La contraseña es demasiado débil. Prueba con una más larga o menos común.';
+    }
+
+    if (message.includes('already registered') || message.includes('already exists')) {
+      return 'Ya existe una cuenta con ese email.';
+    }
+
+    if (message.includes('rate limit') || message.includes('security purposes')) {
+      return 'Por seguridad, espera unos segundos antes de intentarlo de nuevo.';
+    }
+
+    return 'No se pudo completar la operación.';
   }
 }

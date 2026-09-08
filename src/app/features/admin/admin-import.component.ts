@@ -150,6 +150,35 @@ type ImportKind = 'OFFICIAL_EXAMS' | 'TOPICS' | null;
 
     <section class="panel csv-format-help">
       <h2>Formatos admitidos</h2>
+      <p>
+        Descarga una plantilla, sustituye las filas de ejemplo por tus preguntas
+        y conserva los nombres de las columnas. La respuesta correcta debe
+        indicarse con A, B, C o D en <code>correct_option</code>.
+      </p>
+
+      <div class="csv-template-grid">
+        <div class="csv-template-card">
+          <h3>Preguntas por temas</h3>
+          <p>
+            Úsalo para importar bancos de preguntas vinculadas a un tema. Cada
+            fila es una pregunta y el tema se identifica con <code>topic_number</code>.
+          </p>
+          <a class="btn" href="/plantilla-importacion-temas.csv" download>
+            Descargar plantilla
+          </a>
+        </div>
+
+        <div class="csv-template-card">
+          <h3>Exámenes oficiales</h3>
+          <p>
+            Úsalo para importar uno o varios exámenes completos. Las preguntas
+            se agrupan por <code>exam_name</code>, <code>municipality</code> y <code>year</code>.
+          </p>
+          <a class="btn" href="/plantilla-importacion-examenes.csv" download>
+            Descargar plantilla
+          </a>
+        </div>
+      </div>
 
       <p><strong>Preguntas por temas:</strong></p>
       <div class="csv-columns">

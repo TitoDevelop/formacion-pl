@@ -3,6 +3,7 @@ import { adminGuard, authGuard } from './core/auth.guard';
 import { AppShellComponent } from './layout/app-shell.component';
 import { LoginComponent } from './features/auth/login.component';
 import { NoAccessComponent } from './features/auth/no-access.component';
+import { ResetPasswordComponent } from './features/auth/reset-password.component';
 import { DashboardComponent } from './features/dashboard/dashboard.component';
 import { ExamPlayerComponent } from './features/exams/exam-player.component';
 import { OfficialExamDetailComponent } from './features/exams/official-exam-detail.component';
@@ -17,7 +18,7 @@ import { AdminImportComponent } from './features/admin/admin-import.component';
 import { AdminStudentsComponent } from './features/admin/admin-students.component';
 import { AdminResourcesComponent } from './features/admin/admin-resources.component';
 export const routes:Routes=[
-{path:'login',component:LoginComponent},{path:'sin-acceso',component:NoAccessComponent},
+{path:'login',component:LoginComponent},{path:'restablecer-password',component:ResetPasswordComponent},{path:'sin-acceso',component:NoAccessComponent},
 {path:'app',component:AppShellComponent,canActivate:[authGuard],children:[
 {path:'dashboard',component:DashboardComponent},{path:'crear-test',component:CustomTestComponent},{path:'tests',component:TestsLibraryComponent},{path:'temas/:id',component:TopicDetailComponent},{path:'test/personalizado',component:TestPlayerComponent,data:{source:'CUSTOM'}},{path:'test/repaso',component:TestPlayerComponent,data:{source:'REVIEW'}},{path:'test/falladas-tema',component:TestPlayerComponent,data:{source:'FAILED_TOPIC'}},{path:'oficiales/:id',component:OfficialExamDetailComponent},{path:'oficiales/:id/realizar',component:ExamPlayerComponent},{path:'resultado/:id',component:ResultComponent},{path:'repasar',component:ReviewTestComponent},{path:'falladas',component:MistakesComponent},{path:'',pathMatch:'full',redirectTo:'dashboard'}]},
 {path:'admin',component:AppShellComponent,canActivate:[authGuard,adminGuard],children:[{path:'alumnos',component:AdminStudentsComponent},{path:'importar',component:AdminImportComponent},{path:'recursos',component:AdminResourcesComponent},{path:'',pathMatch:'full',redirectTo:'alumnos'}]},

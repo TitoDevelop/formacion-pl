@@ -1,0 +1,4 @@
+topic_number,topic_name,question_number,position,statement,option_a,option_b,option_c,option_d,correct_option,source_name
+1,Constitucion Espanola,1,1,"Cual es la norma suprema del ordenamiento juridico espanol?","La Constitucion Espanola","Una orden ministerial","Un reglamento municipal","Una instruccion interna",A,"Plantilla preguntas por tema"
+1,Constitucion Espanola,2,2,"Cuantas respuestas debe tener cada pregunta en esta plantilla?","Dos","Tres","Cuatro","Cinco",C,"Plantilla preguntas por tema"
+2,Derecho administrativo,1,1,"La respuesta correcta se indica con una letra en la columna correct_option.","Opcion A","Opcion B","Opcion C","Opcion D",D,"Plantilla preguntas por tema"

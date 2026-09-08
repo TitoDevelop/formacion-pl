@@ -40,6 +40,19 @@ export class AuthService {
     return result;
   }
 
+  async requestPasswordReset(email: string) {
+    const result = await this.db.client.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/restablecer-password`
+    });
+    if (result.error) throw result.error;
+  }
+
+  async updatePassword(password: string) {
+    const result = await this.db.client.auth.updateUser({ password });
+    if (result.error) throw result.error;
+    return result;
+  }
+
   async logout() {
     await this.db.client.auth.signOut();
     this.user.set(null);

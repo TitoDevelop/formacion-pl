@@ -1,0 +1,4 @@
+exam_name,municipality,year,question_number,position,statement,option_a,option_b,option_c,option_d,correct_option
+Examen Policia Local de ejemplo,Algemesi,2025,1,1,"Que columna identifica el nombre del examen?","exam_name","municipality","year","correct_option",A
+Examen Policia Local de ejemplo,Algemesi,2025,2,2,"Como se indica la respuesta correcta?","Con el texto completo","Con A, B, C o D","Con verdadero o falso","Con el numero de tema",B
+Examen Policia Local de ejemplo,Algemesi,2025,3,3,"Que columna indica el orden de la pregunta dentro del examen?","position","statement","option_a","municipality",A
