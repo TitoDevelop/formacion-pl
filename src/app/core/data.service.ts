@@ -245,8 +245,11 @@ export class DataService {
     const correct = questions.filter(q => q.correct).length;
     const blank = questions.filter(q => !q.selectedOptionId).length;
     const wrong = questions.length - correct - blank;
+    const rawPoints = attemptType === 'OFFICIAL'
+      ? Math.max(0, correct - (wrong / 3))
+      : correct;
     const score = questions.length
-      ? Number(((correct / questions.length) * 10).toFixed(2))
+      ? Number(((rawPoints / questions.length) * 10).toFixed(2))
       : 0;
 
     const { data: attempt, error } = await this.db.client
@@ -306,7 +309,7 @@ export class DataService {
 
     const { data, error } = await this.db.client
       .from('test_attempts')
-      .select('id,title,mode,total_questions,correct_answers,wrong_answers,score,finished_at,duration_seconds')
+      .select('id,title,attempt_type,mode,total_questions,correct_answers,wrong_answers,score,finished_at,duration_seconds')
       .gte('finished_at', from)
       .order('finished_at', { ascending: false });
 

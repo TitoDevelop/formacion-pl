@@ -73,6 +73,10 @@ export class DashboardComponent implements OnInit {
     this.attempts().reduce((s, a) => s + (a.correct_answers || 0), 0)
   );
 
+  scoreAttempts = computed(() =>
+    this.attempts().filter(a => a.attempt_type !== 'OFFICIAL')
+  );
+
   accuracy = computed(() =>
     this.totalQuestions()
       ? Math.round(this.totalCorrect() / this.totalQuestions() * 100)
@@ -80,8 +84,8 @@ export class DashboardComponent implements OnInit {
   );
 
   avgScore = computed(() =>
-    this.attempts().length
-      ? (this.attempts().reduce((s, a) => s + Number(a.score || 0), 0) / this.attempts().length).toFixed(1)
+    this.scoreAttempts().length
+      ? (this.scoreAttempts().reduce((s, a) => s + Number(a.score || 0), 0) / this.scoreAttempts().length).toFixed(1)
       : '0.0'
   );
 
