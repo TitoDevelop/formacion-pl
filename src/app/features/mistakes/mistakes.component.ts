@@ -1,4 +1,5 @@
 import { Component, OnInit, signal } from '@angular/core';
+import { Router } from '@angular/router';
 import { DataService } from '../../core/data.service';
 
 @Component({
@@ -6,6 +7,9 @@ import { DataService } from '../../core/data.service';
   template: `
     <header class="page-title">
       <div><span class="eyebrow">REPASO</span><h1>Preguntas falladas</h1><p>Últimas preguntas que has contestado incorrectamente.</p></div>
+      @if (questions().length) {
+        <button class="btn primary" (click)="practiceFailed()">Practicar falladas</button>
+      }
     </header>
 
     @if (loading()) {
@@ -32,12 +36,21 @@ import { DataService } from '../../core/data.service';
 export class MistakesComponent implements OnInit {
   questions = signal<any[]>([]);
   loading = signal(true);
-  constructor(private data: DataService) {}
+  constructor(private data: DataService, private router: Router) {}
   async ngOnInit() {
     try { this.questions.set(await this.data.failedQuestions()); }
     finally { this.loading.set(false); }
   }
   correctText(q: any) {
     return q.question_options?.find((o: any) => o.is_correct)?.text ?? 'No disponible';
+  }
+
+  practiceFailed() {
+    this.router.navigate(['/app/test/falladas'], {
+      queryParams: {
+        count: this.questions().length,
+        mode: 'PRACTICE'
+      }
+    });
   }
 }

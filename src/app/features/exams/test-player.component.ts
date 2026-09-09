@@ -4,7 +4,7 @@ import { DataService } from '../../core/data.service';
 import { Question, QuestionOption, TestMode } from '../../core/models';
 import { TestTimer, TimerResumeState, formatDuration } from '../../core/test-timer';
 
-type PlayerSource = 'CUSTOM' | 'REVIEW' | 'FAILED_TOPIC';
+type PlayerSource = 'CUSTOM' | 'REVIEW' | 'FAILED' | 'FAILED_TOPIC';
 type TestDraft = {
   source: PlayerSource;
   mode: TestMode;
@@ -35,7 +35,7 @@ type TestDraft = {
         <div class="exam-progress-actions">
           <div class="test-timer" aria-label="Tiempo transcurrido">⏱ {{ formatTime(timer.elapsedSeconds()) }}</div>
           <div class="progress-text">{{ currentIndex()+1 }} / {{ questions().length }}</div>
-          <button class="btn test-exit-button" type="button" (click)="showExitDialog.set(true)">Salir</button>
+          <button class="btn test-exit-button" type="button" (click)="exit()">Salir</button>
         </div>
       </div>
 
@@ -98,7 +98,7 @@ type TestDraft = {
               class="btn success"
               (click)="finish()"
               [disabled]="submitting() || (mode()==='PRACTICE' && !answered().has(q.id))">
-              {{ submitting() ? 'Guardando…' : 'Finalizar test' }}
+              {{ submitting() ? (isPracticeOnly() ? 'Finalizando...' : 'Guardando...') : (isPracticeOnly() ? 'Terminar practica' : 'Finalizar test') }}
             </button>
           }
         </div>
@@ -159,7 +159,7 @@ export class TestPlayerComponent implements OnInit, OnDestroy {
       const useAllQuestions = this.route.snapshot.queryParamMap.get('all') === 'true';
 
       this.source.set(source);
-      this.mode.set(mode === 'PRACTICE' ? 'PRACTICE' : 'EXAM');
+      this.mode.set(this.isPracticeOnlySource(source) ? 'PRACTICE' : (mode === 'PRACTICE' ? 'PRACTICE' : 'EXAM'));
 
       const draft = await this.readDraft();
       if (draft) {
@@ -181,6 +181,9 @@ export class TestPlayerComponent implements OnInit, OnDestroy {
       if (source === 'REVIEW') {
         this.title.set('Repaso de preguntas marcadas');
         questions = await this.data.getReviewQuestions(count);
+      } else if (source === 'FAILED') {
+        this.title.set('Practica de preguntas falladas');
+        questions = (await this.data.failedQuestions()).slice(0, count);
       } else if (source === 'FAILED_TOPIC') {
         const topicId = this.route.snapshot.queryParamMap.get('topic') ?? '';
         this.topicIds = topicId ? [topicId] : [];
@@ -264,7 +267,22 @@ export class TestPlayerComponent implements OnInit, OnDestroy {
     if (this.currentIndex() > 0) this.currentIndex.update(i => i - 1);
   }
 
+  async exit() {
+    if (this.isPracticeOnly()) {
+      this.timer.clear();
+      await this.leavePlayer();
+      return;
+    }
+
+    this.showExitDialog.set(true);
+  }
+
   async exitAndSave() {
+    if (this.isPracticeOnly()) {
+      await this.leavePlayer();
+      return;
+    }
+
     const timerState = this.timer.pause();
     try {
       await this.data.saveTestDraft(this.draftKey(), {
@@ -287,7 +305,7 @@ export class TestPlayerComponent implements OnInit, OnDestroy {
   }
 
   async exitAndDelete() {
-    await this.deleteDraft();
+    if (!this.isPracticeOnly()) await this.deleteDraft();
     this.timer.clear();
     await this.leavePlayer();
   }
@@ -309,6 +327,14 @@ export class TestPlayerComponent implements OnInit, OnDestroy {
         };
       });
 
+      if (this.isPracticeOnly()) {
+        const correct = payload.filter(answer => answer.correct).length;
+        alert(`Practica terminada: ${correct}/${payload.length} correctas.`);
+        this.timer.clear();
+        await this.leavePlayer();
+        return;
+      }
+
       const timing = this.timer.snapshot();
       const attemptId = await this.data.finishAttempt(
         null,
@@ -329,6 +355,8 @@ export class TestPlayerComponent implements OnInit, OnDestroy {
   }
 
   private async readDraft(): Promise<TestDraft | null> {
+    if (this.isPracticeOnly()) return null;
+
     try {
       const draft = await this.data.getTestDraft<Partial<TestDraft>>(this.draftKey());
       if (!draft) return null;
@@ -366,8 +394,24 @@ export class TestPlayerComponent implements OnInit, OnDestroy {
 
   private leavePlayer() {
     this.showExitDialog.set(false);
+    if (this.topicIds.length === 1 && this.source() === 'FAILED_TOPIC') {
+      return this.router.navigate(['/app/temas', this.topicIds[0]]);
+    }
+
+    if (this.source() === 'FAILED') {
+      return this.router.navigate(['/app/falladas']);
+    }
+
     return this.topicIds.length === 1 && this.source() === 'CUSTOM'
       ? this.router.navigate(['/app/temas', this.topicIds[0]])
       : this.router.navigate(['/app/tests']);
+  }
+
+  isPracticeOnly() {
+    return this.isPracticeOnlySource(this.source());
+  }
+
+  private isPracticeOnlySource(source: PlayerSource) {
+    return source === 'FAILED' || source === 'FAILED_TOPIC';
   }
 }
