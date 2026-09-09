@@ -27,6 +27,7 @@ import { AuthService } from '../core/auth.service';
             <div class="nav-label">ADMINISTRACIÓN</div>
             <a routerLink="/admin/alumnos" routerLinkActive="active" (click)="closeMenu()">♟ <span>Control de alumnos</span></a>
             <a routerLink="/admin/importar" routerLinkActive="active" (click)="closeMenu()">⇧ <span>Importar exámenes</span></a>
+            <a routerLink="/admin/oficiales" routerLinkActive="active" (click)="closeMenu()">◎ <span>Mantenimiento oficiales</span></a>
             <a routerLink="/admin/recursos" routerLinkActive="active" (click)="closeMenu()">▤ <span>Recursos por tema</span></a>
           }
         </nav>

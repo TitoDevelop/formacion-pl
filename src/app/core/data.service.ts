@@ -43,11 +43,58 @@ export class DataService {
     const { data, error } = await this.db.client
       .from('official_exams')
       .select('*')
+      .eq('active', true)
       .order('year', { ascending: false })
       .order('municipality');
 
     if (error) throw error;
     return (data ?? []) as OfficialExam[];
+  }
+
+  async adminListOfficialExams(): Promise<(OfficialExam & { attempt_count: number })[]> {
+    const { data, error } = await this.db.client
+      .from('official_exams')
+      .select('*')
+      .order('active', { ascending: false })
+      .order('year', { ascending: false })
+      .order('municipality');
+
+    if (error) throw error;
+
+    const exams = (data ?? []) as OfficialExam[];
+    if (!exams.length) return [];
+
+    const counts = await Promise.all(
+      exams.map(async exam => ({
+        examId: exam.id,
+        count: await this.adminCountOfficialExamAttempts(exam.id)
+      }))
+    );
+    const countByExam = new Map(counts.map(item => [item.examId, item.count]));
+
+    return exams.map(exam => ({
+      ...exam,
+      attempt_count: countByExam.get(exam.id) ?? 0
+    }));
+  }
+
+  async adminSetOfficialExamActive(examId: string, active: boolean): Promise<void> {
+    const { error } = await this.db.client
+      .from('official_exams')
+      .update({ active })
+      .eq('id', examId);
+
+    if (error) throw error;
+  }
+
+  private async adminCountOfficialExamAttempts(examId: string): Promise<number> {
+    const { count, error } = await this.db.client
+      .from('test_attempts')
+      .select('*', { count: 'exact', head: true })
+      .eq('exam_id', examId);
+
+    if (error) throw error;
+    return count ?? 0;
   }
 
   async getExam(examId: string): Promise<OfficialExam> {
@@ -308,11 +355,15 @@ export class DataService {
   }
 
   async weeklyStats() {
+    const userId = this.auth.user()?.id;
+    if (!userId) return [];
+
     const from = new Date(Date.now() - 7 * 86400000).toISOString();
 
     const { data, error } = await this.db.client
       .from('test_attempts')
       .select('id,title,attempt_type,mode,total_questions,correct_answers,wrong_answers,score,finished_at,duration_seconds')
+      .eq('user_id', userId)
       .gte('finished_at', from)
       .order('finished_at', { ascending: false });
 
@@ -321,17 +372,22 @@ export class DataService {
   }
 
   async failedQuestions() {
+    const userId = this.auth.user()?.id;
+    if (!userId) return [];
+
     const { data, error } = await this.db.client
       .from('test_attempt_answers')
       .select(`
         question_id,
         answered_at,
+        test_attempts!inner(user_id),
         questions (
           id, statement, explanation, topic_id, official, source_reference,
           question_options (id, question_id, text, position, is_correct)
         )
       `)
       .eq('is_correct', false)
+      .eq('test_attempts.user_id', userId)
       .order('answered_at', { ascending: false })
       .limit(500);
 
@@ -538,7 +594,7 @@ export class DataService {
     );
   }
 
-  async importOfficialGroup(group: ImportGroup, limit: number): Promise<string> {
+  async importOfficialGroup(group: ImportGroup, limit: number, active = true): Promise<string> {
     const selected = group.questions.slice(0, Math.max(1, limit));
     const sourceKey = `${group.municipality}-${group.year}-universal-v01`;
 
@@ -559,7 +615,7 @@ export class DataService {
         municipality: group.municipality,
         year: group.year,
         source_key: sourceKey,
-        active: true
+        active
       })
       .select('id')
       .single();
@@ -865,7 +921,7 @@ export class DataService {
     return exams;
   }
 
-  async importOfficialCsvExams(exams: any[]) {
+  async importOfficialCsvExams(exams: any[], active = true) {
     let importedExams = 0;
     let importedQuestions = 0;
     const skipped: string[] = [];
@@ -893,7 +949,7 @@ export class DataService {
           municipality: examData.municipality,
           year: examData.year,
           source_key: sourceKey,
-          active: true
+          active
         })
         .select('id')
         .single();

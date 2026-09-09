@@ -198,6 +198,7 @@ a{text-decoration:none;color:inherit}
 .role-select{width:auto!important;min-width:125px;padding:7px 30px 7px 9px!important;border-radius:999px!important;background:#eef0f4!important;font-size:11px!important;font-weight:800;color:var(--brand-navy)}.role-select.admin{background:var(--brand-gold-soft)!important;border-color:#d8bd61!important;color:#765d13}.own-role-note{display:block;margin-top:4px;color:var(--brand-muted);font-size:9px}
 .access-pill.on{background:#e7f8ed;color:#15783e}.danger-btn{color:#a62929;border-color:#e1b4b4}.success-btn{color:#126c36;border-color:#a8d6b9}
 .admin-metrics{grid-template-columns:repeat(4,1fr)}
+.official-admin-toolbar{align-items:center}.status-filter{max-width:175px}.official-admin-table td small{display:block;color:var(--brand-muted);font-size:10px;margin-top:3px}.attempt-count-pill{display:inline-grid;min-width:32px;height:28px;place-items:center;border-radius:999px;background:#eef0f4;color:var(--brand-muted);font-size:12px;font-weight:850}.attempt-count-pill.has-attempts{background:var(--brand-gold-soft);border:1px solid #ead992;color:#765d13}.official-actions{display:flex;justify-content:flex-end;gap:8px}
 
 /* LOGIN CORPORATIVO */
 .corporate-auth{
@@ -295,6 +296,7 @@ a{text-decoration:none;color:inherit}
   background:var(--brand-gold-soft);border:1px solid #ead992;
   color:#705912;font-size:10px;font-weight:900;letter-spacing:.08em
 }
+.import-visibility-box{margin-top:14px;padding:14px;border:1px solid var(--brand-line);border-radius:11px;background:#f8f9fc}.import-visibility-box p{margin:8px 0 0;color:var(--brand-muted);font-size:12px;line-height:1.45}.visibility-toggle{display:flex!important;align-items:center;gap:10px;margin:0!important}.visibility-toggle input{position:absolute;opacity:0;pointer-events:none}.visibility-toggle span{width:42px;height:24px;border-radius:999px;background:#cfd4df;position:relative;transition:.15s ease}.visibility-toggle span:before{content:"";position:absolute;width:18px;height:18px;left:3px;top:3px;border-radius:50%;background:#fff;box-shadow:0 1px 4px rgba(18,24,54,.22);transition:.15s ease}.visibility-toggle input:checked+span{background:var(--brand-navy)}.visibility-toggle input:checked+span:before{transform:translateX(18px);background:var(--brand-gold-2)}.visibility-toggle strong{font-size:13px;color:var(--brand-navy)}
 .topic-import-note{
   margin:14px 0;padding:12px 14px;border-radius:9px;
   background:#eef5ff;border-left:3px solid var(--brand-navy);

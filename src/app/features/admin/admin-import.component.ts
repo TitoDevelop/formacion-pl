@@ -1,10 +1,12 @@
 import { Component, computed, signal } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { DataService } from '../../core/data.service';
 
 type ImportKind = 'OFFICIAL_EXAMS' | 'TOPICS' | null;
 
 @Component({
   standalone: true,
+  imports: [FormsModule],
   template: `
     <header class="page-title">
       <div>
@@ -132,6 +134,22 @@ type ImportKind = 'OFFICIAL_EXAMS' | 'TOPICS' | null;
             }
           </div>
 
+          <div class="import-visibility-box">
+            <label class="visibility-toggle">
+              <input
+                type="checkbox"
+                [ngModel]="publishOfficialExams()"
+                (ngModelChange)="publishOfficialExams.set($event)">
+              <span></span>
+              <strong>{{ publishOfficialExams() ? 'Importar publicado' : 'Importar oculto' }}</strong>
+            </label>
+            <p>
+              {{ publishOfficialExams()
+                ? 'Los alumnos podran verlo en la biblioteca al terminar la importacion.'
+                : 'Quedara guardado para administradores y podras publicarlo desde Mantenimiento oficiales.' }}
+            </p>
+          </div>
+
           <button
             class="btn primary wide import-all-btn"
             (click)="importExams()"
@@ -219,6 +237,7 @@ export class AdminImportComponent {
   error = signal('');
   success = signal('');
   importing = signal(false);
+  publishOfficialExams = signal(false);
 
   totalQuestions = computed(() => {
     if (this.kind() === 'TOPICS') {
@@ -319,7 +338,8 @@ export class AdminImportComponent {
 
     if (!confirm(
       `Se van a importar ${this.exams().length} exámenes y ` +
-      `${this.totalQuestions()} preguntas. ¿Continuar?`
+      `${this.totalQuestions()} preguntas como ` +
+      `${this.publishOfficialExams() ? 'publicados' : 'ocultos'}. ¿Continuar?`
     )) return;
 
     this.importing.set(true);
@@ -327,7 +347,10 @@ export class AdminImportComponent {
     this.success.set('');
 
     try {
-      const result = await this.data.importOfficialCsvExams(this.exams());
+      const result = await this.data.importOfficialCsvExams(
+        this.exams(),
+        this.publishOfficialExams()
+      );
 
       const skippedText = result.skipped.length
         ? ` ${result.skipped.length} exámenes ya existían y se han omitido.`
@@ -335,7 +358,8 @@ export class AdminImportComponent {
 
       this.success.set(
         `✓ Importación completada: ${result.importedExams} exámenes y ` +
-        `${result.importedQuestions} preguntas.${skippedText}`
+        `${result.importedQuestions} preguntas.${skippedText} ` +
+        `${this.publishOfficialExams() ? 'Quedan publicados.' : 'Quedan ocultos hasta que los publiques.'}`
       );
     } catch (e: any) {
       this.error.set(e?.message ?? 'Error durante la importación de exámenes.');
