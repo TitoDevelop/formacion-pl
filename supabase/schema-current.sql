@@ -1,5 +1,5 @@
 -- ALPHA FORMACION - SQL consolidado actual
--- Generado hasta v0.2.5.
+-- Generado hasta v0.2.6.
 -- Ejecutar desde Supabase > SQL Editor en una base nueva o para reconciliar estructura.
 
 create extension if not exists pgcrypto;
@@ -100,6 +100,13 @@ create table if not exists public.user_review_questions (
   primary key(user_id, question_id)
 );
 
+create table if not exists public.user_resolved_failed_questions (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  question_id uuid not null references public.questions(id) on delete cascade,
+  resolved_at timestamptz not null default now(),
+  primary key(user_id, question_id)
+);
+
 create table if not exists public.test_drafts (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
@@ -152,6 +159,7 @@ create index if not exists idx_attempts_user_finished on public.test_attempts(us
 create index if not exists idx_attempt_answers_attempt on public.test_attempt_answers(attempt_id);
 create index if not exists idx_attempt_answers_question on public.test_attempt_answers(question_id);
 create index if not exists idx_review_user_created on public.user_review_questions(user_id, created_at desc);
+create index if not exists idx_resolved_failed_user_question on public.user_resolved_failed_questions(user_id, question_id);
 create index if not exists idx_test_drafts_user_updated on public.test_drafts(user_id, updated_at desc);
 create index if not exists idx_topic_resources_topic on public.topic_resources(topic_id, created_at desc);
 
@@ -220,6 +228,7 @@ alter table public.official_exam_questions enable row level security;
 alter table public.test_attempts enable row level security;
 alter table public.test_attempt_answers enable row level security;
 alter table public.user_review_questions enable row level security;
+alter table public.user_resolved_failed_questions enable row level security;
 alter table public.test_drafts enable row level security;
 alter table public.topic_resources enable row level security;
 
@@ -245,6 +254,10 @@ drop policy if exists "answers own insert" on public.test_attempt_answers;
 drop policy if exists "review own select" on public.user_review_questions;
 drop policy if exists "review own insert" on public.user_review_questions;
 drop policy if exists "review own delete" on public.user_review_questions;
+drop policy if exists "resolved failed own select" on public.user_resolved_failed_questions;
+drop policy if exists "resolved failed own insert" on public.user_resolved_failed_questions;
+drop policy if exists "resolved failed own update" on public.user_resolved_failed_questions;
+drop policy if exists "resolved failed own delete" on public.user_resolved_failed_questions;
 drop policy if exists "test drafts own select" on public.test_drafts;
 drop policy if exists "test drafts own insert" on public.test_drafts;
 drop policy if exists "test drafts own update" on public.test_drafts;
@@ -352,6 +365,23 @@ with check (user_id = auth.uid() and public.has_platform_access());
 
 create policy "review own delete"
 on public.user_review_questions for delete to authenticated
+using (user_id = auth.uid() and public.has_platform_access());
+
+create policy "resolved failed own select"
+on public.user_resolved_failed_questions for select to authenticated
+using (user_id = auth.uid() and public.has_platform_access());
+
+create policy "resolved failed own insert"
+on public.user_resolved_failed_questions for insert to authenticated
+with check (user_id = auth.uid() and public.has_platform_access());
+
+create policy "resolved failed own update"
+on public.user_resolved_failed_questions for update to authenticated
+using (user_id = auth.uid() and public.has_platform_access())
+with check (user_id = auth.uid() and public.has_platform_access());
+
+create policy "resolved failed own delete"
+on public.user_resolved_failed_questions for delete to authenticated
 using (user_id = auth.uid() and public.has_platform_access());
 
 create policy "test drafts own select"

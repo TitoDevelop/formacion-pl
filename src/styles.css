@@ -145,6 +145,12 @@ a{text-decoration:none;color:inherit}
 .result-actions{display:flex;justify-content:center;gap:10px;flex-wrap:wrap}
 .mistake-list{display:grid;gap:12px}.mistake-card{padding:20px}.mistake-card h3{line-height:1.45;margin:7px 0 14px;color:var(--brand-navy)}
 .correct-answer{background:#edf9f1;border-left:4px solid var(--ok);padding:11px;border-radius:6px;margin-bottom:8px}.mistake-card small{color:var(--brand-muted)}
+.mistake-card-footer{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:10px}
+.mistake-card-footer small{min-width:0;line-height:1.4}
+.mistake-resolve-btn{display:inline-flex;align-items:center;gap:7px;flex:0 0 auto;border:1px solid #b9d7c4;background:#f7fffa;color:#166a3a;border-radius:9px;padding:9px 13px;font-size:13px;font-weight:850;box-shadow:0 3px 10px rgba(18,24,54,.04)}
+.mistake-resolve-btn span{display:grid;place-items:center;width:18px;height:18px;border-radius:999px;background:#e2f6e9;color:#166a3a;font-size:12px}
+.mistake-resolve-btn:hover:not(:disabled){transform:translateY(-1px);border-color:#74bd8e;background:#effbf3;box-shadow:0 7px 16px rgba(22,106,58,.12)}
+.mistake-resolve-btn:disabled{cursor:not-allowed;opacity:.62}
 .builder-layout{display:grid;grid-template-columns:minmax(0,1.3fr) 390px;gap:18px}
 .topic-selector{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .topic-choice{display:flex;align-items:center;gap:12px;text-align:left;background:#fff;border:1px solid var(--brand-line);border-radius:11px;padding:13px}
@@ -175,6 +181,7 @@ a{text-decoration:none;color:inherit}
 .topic-card-body p,.muted{color:var(--brand-muted);font-size:12px}.text-link{display:inline-block;color:#826719;font-size:12px;font-weight:850;margin-top:5px}.disabled-card{opacity:.65}
 .review-builder{display:grid;grid-template-columns:1fr 1fr;gap:18px;max-width:850px}
 .review-hero{text-align:center;padding:45px 25px}.review-count{font-size:70px;font-weight:950;line-height:1;color:var(--brand-navy)}.review-hero h2{margin:9px 0}.review-hero p{color:var(--brand-muted)}
+.review-start-btn{margin-top:16px}
 .admin-grid{display:grid;grid-template-columns:1fr 1.25fr;gap:18px}
 .dropzone{border:2px dashed #b9a55e;padding:30px;border-radius:13px;display:flex;flex-direction:column;text-align:center;cursor:pointer;background:#fffdf6}
 .dropzone strong{color:var(--brand-navy)}.dropzone span{color:var(--brand-muted);font-size:12px;margin-top:5px}
@@ -289,7 +296,7 @@ a{text-decoration:none;color:inherit}
 .exam-progress-actions{display:flex;align-items:center;gap:12px}.test-exit-button{padding:8px 15px}.exit-test-dialog{width:min(500px,100%)}.exit-test-dialog>p{line-height:1.55}.exit-test-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:24px}.btn.danger{background:#fff;color:var(--danger);border-color:rgba(193,61,61,.35)}
 .test-timer{white-space:nowrap;border:1px solid rgba(216,189,97,.55);border-radius:999px;background:var(--brand-gold-soft);color:var(--brand-navy);padding:7px 11px;font-size:13px;font-weight:850;font-variant-numeric:tabular-nums}.attempt-duration{color:#806617!important;font-weight:750}.topic-history-row small{line-height:1.5}
 @media(max-width:950px){.launch-layout,.topic-detail-layout,.resources-admin-layout{grid-template-columns:1fr}.topic-side-card{position:static}}@media(max-width:720px){.topic-hero{margin:-25px -14px 22px;padding:25px 18px}.topic-progress-stats{grid-template-columns:1fr}.topic-history-row,.topic-failed-panel{align-items:flex-start;flex-direction:column}}
-@media(max-width:720px){.exam-topline{align-items:flex-start;gap:12px}.exam-progress-actions{flex-wrap:wrap;justify-content:flex-end;gap:7px}.test-timer{padding:6px 9px;font-size:12px}.exam-nav,.question-toolbar{flex-wrap:wrap}.exam-nav .btn.primary,.exam-nav .btn.success{margin-left:auto}}
+@media(max-width:720px){.exam-topline{align-items:flex-start;gap:12px}.exam-progress-actions{flex-wrap:wrap;justify-content:flex-end;gap:7px}.test-timer{padding:6px 9px;font-size:12px}.exam-nav,.question-toolbar{flex-wrap:wrap}.exam-nav .btn.primary,.exam-nav .btn.success{margin-left:auto}.mistake-card-footer{align-items:flex-start;flex-direction:column}.mistake-resolve-btn{width:100%;justify-content:center}}
 
 .import-type-badge{
   display:inline-block;margin-top:12px;padding:6px 10px;border-radius:999px;

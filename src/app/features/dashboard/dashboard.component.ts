@@ -19,9 +19,9 @@ import { formatDuration } from '../../core/test-timer';
     </header>
 
     <section class="metric-grid">
-      <article class="metric"><span>Preguntas realizadas</span><strong>{{ totalQuestions() }}</strong><small>Últimos 7 días</small></article>
+      <article class="metric"><span>Preguntas realizadas</span><strong>{{ totalQuestions() }}</strong><small>Temas y personalizados</small></article>
       <article class="metric"><span>Acierto medio</span><strong>{{ accuracy() }}%</strong><small>Sobre preguntas respondidas</small></article>
-      <article class="metric"><span>Tests completados</span><strong>{{ attempts().length }}</strong><small>Últimos 7 días</small></article>
+      <article class="metric"><span>Tests completados</span><strong>{{ scoringAttempts().length }}</strong><small>Temas y personalizados</small></article>
       <article class="metric accent"><span>Nota media</span><strong>{{ avgScore() }}</strong><small>Sobre 10</small></article>
     </section>
 
@@ -46,7 +46,7 @@ import { formatDuration } from '../../core/test-timer';
             <div class="attempt-row">
               <div>
                 <strong>{{ a.title || (a.total_questions + ' preguntas') }}</strong>
-                <span>{{ a.finished_at | date:'dd/MM/yyyy HH:mm' }} · {{ a.mode === 'PRACTICE' ? 'Práctico' : 'Examen' }}</span>
+                <span>{{ a.finished_at | date:'dd/MM/yyyy HH:mm' }} · {{ attemptLabel(a) }} · {{ a.mode === 'PRACTICE' ? 'Práctico' : 'Examen' }}</span>
                 @if (a.duration_seconds != null) { <span class="attempt-duration">⏱ {{ formatTime(a.duration_seconds) }}</span> }
               </div>
               <div class="score-pill">{{ a.score }}/10</div>
@@ -65,16 +65,16 @@ export class DashboardComponent implements OnInit {
     (this.auth.profile()?.full_name || 'opositor').split(' ')[0]
   );
 
+  scoringAttempts = computed(() =>
+    this.attempts().filter(a => a.attempt_type === 'CUSTOM' || a.attempt_type === 'TOPIC')
+  );
+
   totalQuestions = computed(() =>
-    this.attempts().reduce((s, a) => s + (a.total_questions || 0), 0)
+    this.scoringAttempts().reduce((s, a) => s + (a.total_questions || 0), 0)
   );
 
   totalCorrect = computed(() =>
-    this.attempts().reduce((s, a) => s + (a.correct_answers || 0), 0)
-  );
-
-  scoreAttempts = computed(() =>
-    this.attempts().filter(a => a.attempt_type !== 'OFFICIAL')
+    this.scoringAttempts().reduce((s, a) => s + (a.correct_answers || 0), 0)
   );
 
   accuracy = computed(() =>
@@ -84,8 +84,8 @@ export class DashboardComponent implements OnInit {
   );
 
   avgScore = computed(() =>
-    this.scoreAttempts().length
-      ? (this.scoreAttempts().reduce((s, a) => s + Number(a.score || 0), 0) / this.scoreAttempts().length).toFixed(1)
+    this.scoringAttempts().length
+      ? (this.scoringAttempts().reduce((s, a) => s + Number(a.score || 0), 0) / this.scoringAttempts().length).toFixed(1)
       : '0.0'
   );
 
@@ -104,5 +104,11 @@ export class DashboardComponent implements OnInit {
 
   formatTime(seconds: number) {
     return formatDuration(seconds);
+  }
+
+  attemptLabel(a: any) {
+    if (a.attempt_type === 'OFFICIAL') return 'Oficial';
+    if (a.attempt_type === 'MISTAKES') return 'Repaso';
+    return 'Puntuable';
   }
 }

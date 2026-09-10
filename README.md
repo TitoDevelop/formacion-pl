@@ -1,80 +1,81 @@
-# Alpha Formación · V0.2
+# Alpha Formacion
 
 Angular 19 + Supabase.
 
-## Novedades V0.2
+## Estado Actual
+
+La referencia consolidada de base de datos esta en:
+
+- `supabase/schema-current.sql`
+
+La documentacion funcional de la base de datos esta en:
+
+- `DATABASE.md`
+
+Para una base nueva, ejecuta `supabase/schema-current.sql` desde Supabase > SQL Editor.
+
+Para una base existente, aplica las migraciones pendientes en orden. La ultima migracion anadida es:
+
+- `supabase/migration-v026-resolved-failed-questions.sql`
+
+Esta migracion permite que un alumno quite manualmente preguntas de "falladas" mediante la accion "Ya la domino".
+
+## Funcionalidad Principal
 
 ### Alumno
 
-- Crear test personalizado.
+- Crear tests personalizados.
 - Elegir uno o varios temas.
-- Elegir 10 / 20 / 30 / 50 / 100 preguntas.
-- Modo EXAMEN:
-  - permite responder libremente;
-  - no muestra la corrección;
-  - resultado al finalizar.
-- Modo PRÁCTICO:
-  - corrige inmediatamente al seleccionar;
-  - muestra la opción correcta cuando fallas;
-  - obliga a responder antes de avanzar.
-- Marcar/desmarcar preguntas para repasar.
-- Crear tests exclusivamente con preguntas marcadas.
-- Biblioteca "Ver tests":
-  - tests por temas;
-  - exámenes oficiales con municipio/año/nombre.
-- Dashboard actualizado.
+- Elegir cantidad de preguntas.
+- Realizar tests en modo `EXAM` o `PRACTICE`.
+- Marcar y desmarcar preguntas para repasar.
+- Crear tests solo con preguntas marcadas.
+- Ver preguntas falladas.
+- Quitar manualmente preguntas de falladas si ya las domina.
+- Acceder a biblioteca de tests por temas.
+- Realizar examenes oficiales.
+- Ver dashboard con progreso y actividad reciente.
 
-### Administración
+### Administracion
 
 - Control de alumnos.
-- Nuevos usuarios quedan `access_enabled = false`.
-- El administrador puede:
-  - dar acceso;
-  - quitar acceso.
-- Los alumnos sin autorización ven una pantalla "Acceso pendiente".
-- El RLS también impide que un alumno bloqueado consulte preguntas directamente por Supabase.
+- Nuevos usuarios quedan con `access_enabled = false`.
+- El administrador puede dar o quitar acceso.
+- Importacion masiva de examenes oficiales por CSV.
+- Importacion masiva de preguntas por tema por CSV.
+- Gestion de examenes oficiales activos/inactivos.
+- Gestion de recursos descargables por tema.
 
-## IMPORTANTE: actualizar Supabase
+## Reglas De Puntuacion
 
-Si ya ejecutaste `supabase/schema.sql` de la V0.1:
+El dashboard global solo puntua:
 
-NO vuelvas a borrar la base.
+- Tests personalizados.
+- Tests por tema.
 
-Ejecuta solamente:
+No puntuan en el dashboard global:
 
-`supabase/migration-v02.sql`
+- Examenes oficiales.
+- Repasos de preguntas marcadas.
+- Repasos de preguntas falladas.
 
-desde Supabase > SQL Editor.
+Los examenes oficiales mantienen su nota e historial, pero se tratan como resultados independientes y no entran en la media global.
 
-Esto:
+Las preguntas falladas:
 
-- añade `profiles.email`;
-- añade `profiles.access_enabled`;
-- mantiene acceso a los ADMIN actuales;
-- crea `user_review_questions`;
-- añade `mode`, `title` y `topic_ids` a los intentos;
-- actualiza RLS;
-- crea algunos temas iniciales vacíos.
-
-## Temas
-
-La función de tests por temas ya está completamente conectada.
-
-Para que un tema tenga preguntas disponibles, las filas de `questions` deben tener su `topic_id`.
-
-Los exámenes importados en la V0.1 todavía entran sin `topic_id`, porque el HTML universal no contiene directamente el número de tema.
-
-Por eso verás los temas en "Ver tests", pero aparecerán con `0 preguntas` hasta clasificarlas.
-
-La siguiente fase recomendada es el panel de administración:
-
-`Preguntas -> asignar tema`
-
-y después clasificación masiva/asistida.
+- se calculan solo desde intentos puntuables;
+- pueden quitarse manualmente con "Ya la domino";
+- reaparecen si el alumno vuelve a fallarlas despues en un test puntuable.
 
 ## Configurar Supabase
 
-`src/environments/environment.ts`
+Configura el cliente en:
+
+```text
+src/environments/environment.ts
+```
+
+Ejemplo:
 
 ```ts
 export const environment = {
@@ -84,63 +85,51 @@ export const environment = {
 };
 ```
 
-No uses `service_role`.
+No uses `service_role` en el frontend.
 
-## Desarrollo
+## Migraciones
 
-```bash
-npm install
-npm start
+Para bases existentes, aplica segun lo que ya tenga instalado:
+
+```text
+supabase/migration-v02.sql
+supabase/migration-test-attempts-temporizador-estadisticas.sql
+supabase/migration-v023.sql
+supabase/migration-v024-test-drafts.sql
+supabase/migration-v025-admin-official-exams.sql
+supabase/migration-v026-resolved-failed-questions.sql
 ```
 
-## Build
+Resumen:
 
-```bash
-npm run build
+- `migration-v02.sql`: perfiles, control de acceso, preguntas marcadas, modos de intento y RLS.
+- `migration-test-attempts-temporizador-estadisticas.sql`: temporizador y estadisticas de intentos.
+- `migration-v023.sql`: recursos por tema y Storage privado.
+- `migration-v024-test-drafts.sql`: borradores de tests.
+- `migration-v025-admin-official-exams.sql`: administracion/visibilidad de examenes oficiales.
+- `migration-v026-resolved-failed-questions.sql`: preguntas falladas resueltas manualmente.
+
+## Documentacion De Base De Datos
+
+Consulta:
+
+```text
+DATABASE.md
 ```
 
-## Git
+Incluye:
 
-```bash
-git add .
-git commit -m "Alpha Formacion v0.2"
-git push origin main
-```
+- tablas;
+- relaciones;
+- RLS;
+- funciones de seguridad;
+- flujos principales;
+- reglas de puntuacion;
+- notas de mantenimiento.
 
-Netlify leerá el `netlify.toml` existente.
+## Importacion CSV
 
-## Flujo de nuevos alumnos
-
-1. Alumno se registra.
-2. Confirma email si la confirmación está activada en Supabase.
-3. Inicia sesión.
-4. Ve "Acceso pendiente".
-5. ADMIN -> Control de alumnos.
-6. Pulsa "Dar acceso".
-7. Alumno cierra sesión / vuelve a entrar.
-8. Ya puede usar la plataforma.
-
-
-## V0.2.1 · Identidad corporativa
-
-- Logo real añadido en `public/alpha-logo.png`.
-- Favicon actualizado.
-- Nueva paleta corporativa basada en el emblema:
-  - azul noche `#0F132F`
-  - azul policial `#303867`
-  - dorado `#D8BD61`
-  - dorado claro `#F0DA86`
-  - fondo claro `#F5F6F9`
-- Login completamente rediseñado.
-- Sidebar corporativo con logo y usuario.
-- Botones, tarjetas, progreso, tests y administración adaptados a la nueva identidad.
-
-
-## V0.2.2 · Importador masivo CSV
-
-El panel `Administración > Importar exámenes` ahora utiliza CSV como formato principal.
-
-Puede importar un único archivo con muchos exámenes.
+### Examenes oficiales
 
 Columnas obligatorias:
 
@@ -148,7 +137,7 @@ Columnas obligatorias:
 exam_name,municipality,year,question_number,position,statement,option_a,option_b,option_c,option_d,correct_option
 ```
 
-Opcionales:
+Columnas opcionales:
 
 ```csv
 correct_text,source_id
@@ -156,45 +145,86 @@ correct_text,source_id
 
 El importador:
 
-- agrupa preguntas por `exam_name + municipality + year`;
-- muestra una previsualización;
-- cuenta exámenes y preguntas;
-- crea los exámenes;
-- crea las preguntas;
-- crea las cuatro opciones;
-- marca la opción correcta;
-- relaciona cada pregunta con su examen;
-- evita duplicar exámenes importados anteriormente mediante `source_key`.
+- agrupa por `exam_name + municipality + year`;
+- crea examenes oficiales;
+- crea preguntas y opciones;
+- marca la opcion correcta;
+- relaciona preguntas con el examen;
+- evita duplicados mediante `source_key`.
 
-No requiere ninguna migración nueva de Supabase respecto a V0.2.
+### Preguntas por tema
 
+El CSV de temas se identifica por `topic_number`.
 
-## V0.2.3
-Ejecuta `supabase/migration-v023.sql` después de `migration-v02.sql`.
+En la importacion por tema:
 
-Incluye selector EXAMEN/PRÁCTICO para oficiales, ficha de tema con progreso, historial, falladas y descargables, y administración de recursos por tema usando Supabase Storage privado.
-
-
-## V0.2.4 · Importación masiva de preguntas por tema
-
-El importador CSV admite ahora dos formatos y los detecta automáticamente:
-
-1. `exam_name` -> exámenes oficiales.
-2. `topic_number` -> banco de preguntas clasificado por temas.
-
-En la importación por tema:
 - se busca `topics.id` mediante `topics.number`;
 - si el tema no existe, se crea;
 - cada pregunta se inserta con `questions.topic_id`;
-- las preguntas se marcan como `official = true` porque proceden de recopilaciones de exámenes;
-- se crean las cuatro opciones y se marca `is_correct`;
+- se crean las opciones;
+- se marca `is_correct`;
 - si ya existe el mismo enunciado en el mismo tema, se omite.
 
-No requiere una migración SQL adicional.
+Gracias a `topic_id`, las preguntas importadas entran automaticamente en:
 
-Gracias a `topic_id`, las preguntas importadas se utilizan automáticamente en:
-- Crear test personalizado;
-- Ver tests por temas;
-- ficha/progreso del tema;
-- estadísticas por tema;
-- práctica de preguntas falladas del tema.
+- tests personalizados;
+- tests por temas;
+- ficha y progreso del tema;
+- estadisticas por tema;
+- preguntas falladas puntuables.
+
+## Flujo De Nuevos Alumnos
+
+1. Alumno se registra.
+2. Confirma email si la confirmacion esta activada en Supabase.
+3. Inicia sesion.
+4. Ve "Acceso pendiente".
+5. Admin entra en control de alumnos.
+6. Admin pulsa "Dar acceso".
+7. Alumno cierra sesion o vuelve a entrar.
+8. Ya puede usar la plataforma.
+
+## Desarrollo
+
+Instalar dependencias:
+
+```bash
+npm install
+```
+
+Arrancar en local:
+
+```bash
+npm start
+```
+
+Build:
+
+```bash
+npm run build
+```
+
+Comprobacion TypeScript sin generar build:
+
+```bash
+npx tsc --noEmit -p tsconfig.app.json
+```
+
+## Deploy
+
+Netlify lee la configuracion existente en:
+
+```text
+netlify.toml
+```
+
+## Git
+
+Ejemplo:
+
+```bash
+git add .
+git commit -m "Actualizar Alpha Formacion"
+git push origin main
+```
+

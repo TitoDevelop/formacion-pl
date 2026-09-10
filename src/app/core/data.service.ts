@@ -371,7 +371,7 @@ export class DataService {
     return data ?? [];
   }
 
-  async failedQuestions() {
+  async failedQuestions(): Promise<Question[]> {
     const userId = this.auth.user()?.id;
     if (!userId) return [];
 
@@ -380,7 +380,7 @@ export class DataService {
       .select(`
         question_id,
         answered_at,
-        test_attempts!inner(user_id),
+        test_attempts!inner(user_id,attempt_type),
         questions (
           id, statement, explanation, topic_id, official, source_reference,
           question_options (id, question_id, text, position, is_correct)
@@ -388,22 +388,66 @@ export class DataService {
       `)
       .eq('is_correct', false)
       .eq('test_attempts.user_id', userId)
+      .in('test_attempts.attempt_type', ['CUSTOM', 'TOPIC'])
       .order('answered_at', { ascending: false })
       .limit(500);
 
     if (error) throw error;
 
+    const latestResolved = await this.resolvedFailedQuestionDates(
+      [...new Set((data ?? []).map(row => row.question_id))]
+    );
+
     const seen = new Set<string>();
-    const unique: any[] = [];
+    const unique: Question[] = [];
 
     for (const row of data ?? []) {
       if (!seen.has(row.question_id)) {
         seen.add(row.question_id);
-        unique.push(row.questions);
+        const resolvedAt = latestResolved.get(row.question_id);
+        const failedAt = new Date(row.answered_at).getTime();
+        const hidden = resolvedAt !== undefined && resolvedAt >= failedAt;
+        if (!hidden && row.questions) unique.push(row.questions as unknown as Question);
       }
     }
 
     return unique;
+  }
+
+  async resolveFailedQuestion(questionId: string): Promise<void> {
+    const userId = this.auth.user()?.id;
+    if (!userId) throw new Error('No hay sesión activa.');
+
+    const { error } = await this.db.client
+      .from('user_resolved_failed_questions')
+      .upsert({
+        user_id: userId,
+        question_id: questionId,
+        resolved_at: new Date().toISOString()
+      }, { onConflict: 'user_id,question_id' });
+
+    if (error) throw error;
+  }
+
+  private async resolvedFailedQuestionDates(questionIds: string[]): Promise<Map<string, number>> {
+    const userId = this.auth.user()?.id;
+    if (!userId || !questionIds.length) return new Map();
+
+    const { data, error } = await this.db.client
+      .from('user_resolved_failed_questions')
+      .select('question_id,resolved_at')
+      .eq('user_id', userId)
+      .in('question_id', questionIds);
+
+    if (error) {
+      const missingTable = ['42P01', 'PGRST205'].includes((error as any).code);
+      if (missingTable) return new Map();
+      throw error;
+    }
+
+    return new Map(
+      (data ?? []).map(row => [row.question_id, new Date(row.resolved_at).getTime()])
+    );
   }
 
   async adminListStudents() {
@@ -455,15 +499,16 @@ export class DataService {
 
     const { data: attempts, error: aError } = await this.db.client
       .from('test_attempts')
-      .select('id,title,mode,total_questions,correct_answers,wrong_answers,blank_answers,score,finished_at,duration_seconds,topic_ids')
-      .eq('user_id', userId).contains('topic_ids', [topicId])
+      .select('id,title,attempt_type,mode,total_questions,correct_answers,wrong_answers,blank_answers,score,finished_at,duration_seconds,topic_ids')
+      .eq('user_id', userId).in('attempt_type', ['CUSTOM', 'TOPIC']).contains('topic_ids', [topicId])
       .order('finished_at', { ascending: false }).limit(30);
     if (aError) throw aError;
 
     const { data: answers, error: ansError } = await this.db.client
       .from('test_attempt_answers')
-      .select('question_id,is_correct,answered_at,test_attempts!inner(user_id)')
+      .select('question_id,is_correct,answered_at,test_attempts!inner(user_id,attempt_type)')
       .eq('test_attempts.user_id', userId)
+      .in('test_attempts.attempt_type', ['CUSTOM', 'TOPIC'])
       .in('question_id', questionIds)
       .order('answered_at', { ascending: true });
     if (ansError) throw ansError;

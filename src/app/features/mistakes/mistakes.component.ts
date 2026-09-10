@@ -26,7 +26,17 @@ import { DataService } from '../../core/data.service';
               Correcta:
               <strong>{{ correctText(q) }}</strong>
             </div>
-            @if (q.source_reference) { <small>{{ q.source_reference }}</small> }
+            <div class="mistake-card-footer">
+              @if (q.source_reference) { <small>{{ q.source_reference }}</small> }
+              <button
+                class="mistake-resolve-btn"
+                type="button"
+                [disabled]="resolving().has(q.id)"
+                (click)="resolve(q)">
+                <span>✓</span>
+                {{ resolving().has(q.id) ? 'Quitando...' : 'Ya la domino' }}
+              </button>
+            </div>
           </article>
         }
       </div>
@@ -35,6 +45,7 @@ import { DataService } from '../../core/data.service';
 })
 export class MistakesComponent implements OnInit {
   questions = signal<any[]>([]);
+  resolving = signal<Set<string>>(new Set());
   loading = signal(true);
   constructor(private data: DataService, private router: Router) {}
   async ngOnInit() {
@@ -43,6 +54,21 @@ export class MistakesComponent implements OnInit {
   }
   correctText(q: any) {
     return q.question_options?.find((o: any) => o.is_correct)?.text ?? 'No disponible';
+  }
+
+  async resolve(q: any) {
+    if (!confirm('¿Quitar esta pregunta de falladas? Si vuelves a fallarla en un test puntuable, reaparecerá.')) return;
+    this.resolving.update(ids => new Set(ids).add(q.id));
+    try {
+      await this.data.resolveFailedQuestion(q.id);
+      this.questions.update(items => items.filter(item => item.id !== q.id));
+    } finally {
+      this.resolving.update(ids => {
+        const next = new Set(ids);
+        next.delete(q.id);
+        return next;
+      });
+    }
   }
 
   practiceFailed() {

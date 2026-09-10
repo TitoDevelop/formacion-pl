@@ -43,7 +43,7 @@ import { TestMode } from '../../core/models';
           <div class="form-info">Todavía no has marcado ninguna pregunta para repasar.</div>
         }
 
-        <button class="btn primary wide" (click)="start()" [disabled]="!total()">
+        <button class="btn primary wide review-start-btn" (click)="start()" [disabled]="!total()">
           COMENZAR REPASO
         </button>
       </section>
