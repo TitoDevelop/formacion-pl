@@ -94,6 +94,13 @@ type AdminOfficialExam = OfficialExam & { attempt_count: number };
                       (click)="toggle(exam)">
                       {{ exam.active ? 'Archivar' : 'Republicar' }}
                     </button>
+                    <button
+                      class="btn danger-btn"
+                      [disabled]="changing().has(exam.id)"
+                      title="Eliminar examen oficial"
+                      (click)="remove(exam)">
+                      Eliminar
+                    </button>
                   </td>
                 </tr>
               } @empty {
@@ -179,6 +186,31 @@ export class AdminOfficialExamsComponent implements OnInit {
       this.success.set(next ? 'Examen republicado.' : 'Examen archivado. Ya no aparecera a los alumnos.');
     } catch (e: any) {
       this.error.set(e?.message ?? 'No se pudo cambiar el estado del examen.');
+    } finally {
+      this.changing.update(ids => {
+        const nextIds = new Set(ids);
+        nextIds.delete(exam.id);
+        return nextIds;
+      });
+    }
+  }
+
+  async remove(exam: AdminOfficialExam) {
+    const detail = exam.attempt_count
+      ? `Tiene ${exam.attempt_count} intento(s). Se borraran tambien esos intentos, sus respuestas, las preguntas, opciones y marcas de repaso asociadas.`
+      : 'Se borraran tambien las preguntas, opciones y marcas de repaso asociadas.';
+    if (!confirm(`Eliminar definitivamente "${exam.name}"? ${detail} Esta accion no se puede deshacer.`)) return;
+
+    this.changing.update(ids => new Set(ids).add(exam.id));
+    this.error.set('');
+    this.success.set('');
+
+    try {
+      await this.data.adminDeleteOfficialExam(exam.id);
+      this.exams.update(list => list.filter(item => item.id !== exam.id));
+      this.success.set('Examen eliminado definitivamente.');
+    } catch (e: any) {
+      this.error.set(e?.message ?? 'No se pudo eliminar el examen.');
     } finally {
       this.changing.update(ids => {
         const nextIds = new Set(ids);

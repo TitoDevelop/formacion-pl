@@ -249,6 +249,7 @@ drop policy if exists "attempts own select" on public.test_attempts;
 drop policy if exists "attempts own insert" on public.test_attempts;
 drop policy if exists "attempts own update" on public.test_attempts;
 drop policy if exists "attempts admin select" on public.test_attempts;
+drop policy if exists "attempts admin delete" on public.test_attempts;
 drop policy if exists "answers own select" on public.test_attempt_answers;
 drop policy if exists "answers own insert" on public.test_attempt_answers;
 drop policy if exists "review own select" on public.user_review_questions;
@@ -333,6 +334,10 @@ with check (user_id = auth.uid() and public.has_platform_access());
 
 create policy "attempts admin select"
 on public.test_attempts for select to authenticated
+using (public.is_admin());
+
+create policy "attempts admin delete"
+on public.test_attempts for delete to authenticated
 using (public.is_admin());
 
 create policy "answers own select"

@@ -87,6 +87,41 @@ export class DataService {
     if (error) throw error;
   }
 
+  async adminDeleteOfficialExam(examId: string): Promise<void> {
+    const { data: relations, error: relationError } = await this.db.client
+      .from('official_exam_questions')
+      .select('question_id')
+      .eq('exam_id', examId);
+
+    if (relationError) throw relationError;
+
+    const questionIds = [...new Set((relations ?? []).map(row => row.question_id))];
+
+    const { error: attemptsError } = await this.db.client
+      .from('test_attempts')
+      .delete()
+      .eq('exam_id', examId);
+
+    if (attemptsError) throw attemptsError;
+
+    const { error: examError } = await this.db.client
+      .from('official_exams')
+      .delete()
+      .eq('id', examId);
+
+    if (examError) throw examError;
+
+    if (questionIds.length) {
+      const { error: questionError } = await this.db.client
+        .from('questions')
+        .delete()
+        .in('id', questionIds)
+        .eq('official', true);
+
+      if (questionError) throw questionError;
+    }
+  }
+
   private async adminCountOfficialExamAttempts(examId: string): Promise<number> {
     const { count, error } = await this.db.client
       .from('test_attempts')
@@ -388,7 +423,7 @@ export class DataService {
       `)
       .eq('is_correct', false)
       .eq('test_attempts.user_id', userId)
-      .in('test_attempts.attempt_type', ['CUSTOM', 'TOPIC'])
+      .in('test_attempts.attempt_type', ['OFFICIAL', 'CUSTOM', 'TOPIC'])
       .order('answered_at', { ascending: false })
       .limit(500);
 
