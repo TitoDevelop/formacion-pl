@@ -2,7 +2,7 @@ import { Component, OnInit, computed, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { DataService } from '../../core/data.service';
-import { TestMode, Topic } from '../../core/models';
+import { QuestionOfficialFilter, TestMode, Topic } from '../../core/models';
 
 @Component({
   standalone: true,
@@ -57,6 +57,24 @@ import { TestMode, Topic } from '../../core/models';
           }
         </div>
 
+        <label>Tipo de preguntas</label>
+        <div class="mode-grid">
+          <button class="mode-card" [class.selected]="officialFilter==='all'" (click)="setOfficialFilter('all')">
+            <strong>Todas</strong>
+            <span>Mezcla oficiales y no oficiales.</span>
+          </button>
+
+          <button class="mode-card" [class.selected]="officialFilter==='official'" (click)="setOfficialFilter('official')">
+            <strong>Oficiales</strong>
+            <span>Solo preguntas oficiales por tema.</span>
+          </button>
+
+          <button class="mode-card" [class.selected]="officialFilter==='unofficial'" (click)="setOfficialFilter('unofficial')">
+            <strong>No oficiales</strong>
+            <span>Solo preguntas de refuerzo.</span>
+          </button>
+        </div>
+
         <label>Modo</label>
         <div class="mode-grid">
           <button class="mode-card" [class.selected]="mode==='EXAM'" (click)="mode='EXAM'">
@@ -95,6 +113,7 @@ export class CustomTestComponent implements OnInit {
   error = signal('');
   count = 20;
   mode: TestMode = 'EXAM';
+  officialFilter: QuestionOfficialFilter = 'all';
   quantities = [10, 20, 30, 50, 100];
 
   constructor(
@@ -157,7 +176,8 @@ export class CustomTestComponent implements OnInit {
       queryParams: {
         topics: selectedIds.join(','),
         count: this.count,
-        mode: this.mode
+        mode: this.mode,
+        questionType: this.officialFilter
       }
     });
   }
@@ -182,13 +202,22 @@ export class CustomTestComponent implements OnInit {
     return String(selectedIds.reduce((sum, id) => sum + (this.questionCounts()[id] ?? 0), 0));
   }
 
+  setOfficialFilter(filter: QuestionOfficialFilter) {
+    this.officialFilter = filter;
+    this.questionCounts.set({});
+
+    for (const topicId of this.selectedTopics()) {
+      void this.ensureTopicCount(topicId);
+    }
+  }
+
   private async ensureTopicCount(topicId: string) {
     if (this.questionCounts()[topicId] !== undefined || this.loadingCounts().has(topicId)) return;
 
     this.loadingCounts.update(set => new Set(set).add(topicId));
 
     try {
-      const count = await this.data.countTopicQuestions([topicId]);
+      const count = await this.data.countTopicQuestions([topicId], this.officialFilter);
       this.questionCounts.update(counts => ({ ...counts, [topicId]: count }));
     } finally {
       this.loadingCounts.update(set => {

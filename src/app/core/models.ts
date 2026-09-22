@@ -1,5 +1,6 @@
 export type UserRole = 'STUDENT' | 'ADMIN';
 export type TestMode = 'EXAM' | 'PRACTICE';
+export type QuestionOfficialFilter = 'all' | 'official' | 'unofficial';
 
 export interface Profile {
   id: string;

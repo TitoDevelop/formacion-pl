@@ -1,7 +1,7 @@
 import { Component, OnDestroy, OnInit, computed, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { DataService } from '../../core/data.service';
-import { Question, QuestionOption, TestMode } from '../../core/models';
+import { Question, QuestionOfficialFilter, QuestionOption, TestMode } from '../../core/models';
 import { TestTimer, TimerResumeState, formatDuration } from '../../core/test-timer';
 
 type PlayerSource = 'CUSTOM' | 'REVIEW' | 'FAILED' | 'FAILED_TOPIC';
@@ -10,6 +10,7 @@ type TestDraft = {
   mode: TestMode;
   title: string;
   topicIds: string[];
+  officialFilter?: QuestionOfficialFilter;
   questions: Question[];
   currentIndex: number;
   selected: Record<string, string>;
@@ -136,6 +137,7 @@ export class TestPlayerComponent implements OnInit, OnDestroy {
   title = signal('Test personalizado');
   source = signal<PlayerSource>('CUSTOM');
   topicIds: string[] = [];
+  officialFilter: QuestionOfficialFilter = 'all';
 
   progress = computed(() =>
     this.questions().length
@@ -157,6 +159,7 @@ export class TestPlayerComponent implements OnInit, OnDestroy {
       const mode = (this.route.snapshot.queryParamMap.get('mode') ?? 'EXAM') as TestMode;
       const count = Math.max(1, Math.min(200, Number(this.route.snapshot.queryParamMap.get('count') ?? 20)));
       const useAllQuestions = this.route.snapshot.queryParamMap.get('all') === 'true';
+      this.officialFilter = this.readOfficialFilter();
 
       this.source.set(source);
       this.mode.set(this.isPracticeOnlySource(source) ? 'PRACTICE' : (mode === 'PRACTICE' ? 'PRACTICE' : 'EXAM'));
@@ -167,6 +170,7 @@ export class TestPlayerComponent implements OnInit, OnDestroy {
         this.mode.set(draft.mode);
         this.title.set(draft.title);
         this.topicIds = draft.topicIds;
+        this.officialFilter = draft.officialFilter ?? 'all';
         this.questions.set(draft.questions);
         this.currentIndex.set(Math.min(draft.currentIndex, Math.max(0, draft.questions.length - 1)));
         this.selected.set(draft.selected);
@@ -188,11 +192,11 @@ export class TestPlayerComponent implements OnInit, OnDestroy {
         const topicId = this.route.snapshot.queryParamMap.get('topic') ?? '';
         this.topicIds = topicId ? [topicId] : [];
         this.title.set('Repaso de falladas del tema');
-        questions = topicId ? await this.data.getTopicFailedQuestions(topicId, count) : [];
+        questions = topicId ? await this.data.getTopicFailedQuestions(topicId, count, this.officialFilter) : [];
       } else {
         this.topicIds = (this.route.snapshot.queryParamMap.get('topics') ?? '').split(',').filter(Boolean);
-        this.title.set(useAllQuestions ? 'Test completo del tema' : 'Test personalizado');
-        questions = await this.data.getCustomQuestions(this.topicIds, useAllQuestions ? undefined : count);
+        this.title.set(this.buildCustomTitle(useAllQuestions));
+        questions = await this.data.getCustomQuestions(this.topicIds, useAllQuestions ? undefined : count, this.officialFilter);
       }
 
       this.questions.set(questions);
@@ -290,6 +294,7 @@ export class TestPlayerComponent implements OnInit, OnDestroy {
         mode: this.mode(),
         title: this.title(),
         topicIds: this.topicIds,
+        officialFilter: this.officialFilter,
         questions: this.questions(),
         currentIndex: this.currentIndex(),
         selected: this.selected(),
@@ -413,5 +418,17 @@ export class TestPlayerComponent implements OnInit, OnDestroy {
 
   private isPracticeOnlySource(source: PlayerSource) {
     return source === 'FAILED' || source === 'FAILED_TOPIC';
+  }
+
+  private readOfficialFilter(): QuestionOfficialFilter {
+    const value = this.route.snapshot.queryParamMap.get('questionType');
+    return value === 'official' || value === 'unofficial' ? value : 'all';
+  }
+
+  private buildCustomTitle(useAllQuestions: boolean) {
+    if (!useAllQuestions) return 'Test personalizado';
+    if (this.officialFilter === 'official') return 'Test oficial del tema';
+    if (this.officialFilter === 'unofficial') return 'Test no oficial del tema';
+    return 'Test completo del tema';
   }
 }

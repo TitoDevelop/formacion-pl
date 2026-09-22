@@ -78,6 +78,7 @@ type ImportKind = 'OFFICIAL_EXAMS' | 'TOPICS' | null;
                 </div>
                 <div class="detected-count">
                   {{ topic.questions.length }} preguntas
+                  <small>{{ topicOfficialCount(topic, true) }} oficiales · {{ topicOfficialCount(topic, false) }} no oficiales</small>
                 </div>
               </div>
             }
@@ -210,6 +211,8 @@ type ImportKind = 'OFFICIAL_EXAMS' | 'TOPICS' | null;
         <code>option_c</code>
         <code>option_d</code>
         <code>correct_option</code>
+        <code>source_name</code>
+        <code>official</code>
       </div>
 
       <p><strong>Exámenes oficiales:</strong></p>
@@ -254,6 +257,10 @@ export class AdminImportComponent {
   });
 
   constructor(private data: DataService) {}
+
+  topicOfficialCount(topic: any, official: boolean) {
+    return topic.questions.filter((question: any) => question.official === official).length;
+  }
 
   async loadCsv(event: Event) {
     this.kind.set(null);

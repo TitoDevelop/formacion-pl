@@ -5,6 +5,7 @@ import {
   ImportGroup,
   OfficialExam,
   Question,
+  QuestionOfficialFilter,
   TestMode,
   Topic,
   UniversalQuestion
@@ -27,16 +28,29 @@ export class DataService {
     return (data ?? []) as Topic[];
   }
 
-  async countTopicQuestions(topicIds: string[]): Promise<number> {
+  async countTopicQuestions(topicIds: string[], officialFilter: QuestionOfficialFilter = 'all'): Promise<number> {
     if (!topicIds.length) return 0;
 
-    const { count, error } = await this.db.client
+    let query = this.db.client
       .from('questions')
       .select('*', { count: 'exact', head: true })
       .in('topic_id', topicIds);
 
+    query = this.applyOfficialFilter(query, officialFilter);
+
+    const { count, error } = await query;
+
     if (error) throw error;
     return count ?? 0;
+  }
+
+  async countTopicQuestionKinds(topicId: string): Promise<{ official: number; unofficial: number; total: number }> {
+    const [official, unofficial] = await Promise.all([
+      this.countTopicQuestions([topicId], 'official'),
+      this.countTopicQuestions([topicId], 'unofficial')
+    ]);
+
+    return { official, unofficial, total: official + unofficial };
   }
 
   async listOfficialExams(): Promise<OfficialExam[]> {
@@ -163,7 +177,11 @@ export class DataService {
     return (data ?? []) as unknown as ExamQuestionRow[];
   }
 
-  async getCustomQuestions(topicIds: string[], count?: number): Promise<Question[]> {
+  async getCustomQuestions(
+    topicIds: string[],
+    count?: number,
+    officialFilter: QuestionOfficialFilter = 'all'
+  ): Promise<Question[]> {
     if (!topicIds.length) return [];
 
     const pageSize = 1000;
@@ -171,14 +189,17 @@ export class DataService {
     let from = 0;
 
     do {
-      const { data, error } = await this.db.client
+      let query = this.db.client
         .from('questions')
         .select(`
           id, statement, explanation, topic_id, official, source_reference,
           question_options (id, question_id, text, position, is_correct)
         `)
-        .in('topic_id', topicIds)
-        .range(from, from + pageSize - 1);
+        .in('topic_id', topicIds);
+
+      query = this.applyOfficialFilter(query, officialFilter);
+
+      const { data, error } = await query.range(from, from + pageSize - 1);
 
       if (error) throw error;
 
@@ -521,15 +542,22 @@ export class DataService {
     return data as Topic;
   }
 
-  async getTopicProgress(topicId: string) {
+  async getTopicProgress(topicId: string, officialFilter: QuestionOfficialFilter = 'all') {
     const userId = this.auth.user()?.id;
     if (!userId) throw new Error('No hay sesión activa.');
 
-    const totalQuestions = await this.countTopicQuestions([topicId]);
+    const totalQuestions = await this.countTopicQuestions([topicId], officialFilter);
     const { data: topicQuestions, error: tqError } = await this.db.client
-      .from('questions').select('id').eq('topic_id', topicId);
+      .from('questions').select('id,official').eq('topic_id', topicId);
     if (tqError) throw tqError;
-    const questionIds = (topicQuestions ?? []).map(q => q.id);
+    const filteredTopicQuestions = (topicQuestions ?? []).filter(q =>
+      officialFilter === 'all'
+        ? true
+        : officialFilter === 'official'
+          ? q.official === true
+          : q.official === false
+    );
+    const questionIds = filteredTopicQuestions.map(q => q.id);
     if (!totalQuestions || !questionIds.length) return { totalQuestions:0, answeredQuestions:0, correctAnswers:0, wrongAnswers:0, accuracy:0, completion:0, failedQuestionIds:[], attempts:[] };
 
     const { data: attempts, error: aError } = await this.db.client
@@ -562,16 +590,20 @@ export class DataService {
     for (const row of drafts ?? []) {
       const draft = row.payload as {
         topicIds?: string[];
+        officialFilter?: QuestionOfficialFilter;
         questions?: Question[];
         selected?: Record<string, string>;
         answered?: string[];
       };
 
-      if (!draftKey && draft.topicIds?.includes(topicId) && Array.isArray(draft.questions)) {
+      const draftFilter = draft.officialFilter ?? 'all';
+      const draftMatchesFilter = officialFilter === 'all' || draftFilter === officialFilter;
+
+      if (!draftKey && draft.topicIds?.includes(topicId) && draftMatchesFilter && Array.isArray(draft.questions)) {
         draftKey = row.draft_key;
       }
 
-      if (!draft.topicIds?.includes(topicId) || !Array.isArray(draft.questions) || !draft.selected) continue;
+      if (!draft.topicIds?.includes(topicId) || !draftMatchesFilter || !Array.isArray(draft.questions) || !draft.selected) continue;
 
       const answeredDraftIds = new Set([
         ...(draft.answered ?? []),
@@ -602,8 +634,8 @@ export class DataService {
     };
   }
 
-  async getTopicFailedQuestions(topicId: string, count: number): Promise<Question[]> {
-    const progress = await this.getTopicProgress(topicId);
+  async getTopicFailedQuestions(topicId: string, count: number, officialFilter: QuestionOfficialFilter = 'all'): Promise<Question[]> {
+    const progress = await this.getTopicProgress(topicId, officialFilter);
     const ids = progress.failedQuestionIds.slice(0, Math.max(1, count));
     if (!ids.length) return [];
     const { data, error } = await this.db.client.from('questions').select(`
@@ -810,7 +842,14 @@ export class DataService {
         source_name:
           idx('source_name') >= 0
             ? row[idx('source_name')]?.trim() || `Tema ${topicNumber}`
-            : `Tema ${topicNumber}`
+            : `Tema ${topicNumber}`,
+        official: this.parseOfficialImportValue(
+          idx('official') >= 0
+            ? row[idx('official')]
+            : idx('question_type') >= 0
+              ? row[idx('question_type')]
+              : ''
+        )
       });
     }
 
@@ -866,6 +905,7 @@ export class DataService {
           .select('id')
           .eq('topic_id', topic.id)
           .eq('statement', q.statement)
+          .eq('official', q.official)
           .maybeSingle();
 
         if (existingError) throw existingError;
@@ -880,7 +920,7 @@ export class DataService {
           .insert({
             statement: q.statement,
             topic_id: topic.id,
-            official: true,
+            official: q.official,
             source_reference: `${q.source_name} · P${q.question_number}`
           })
           .select('id')
@@ -1180,5 +1220,27 @@ export class DataService {
       .replace(/\s+/g, ' ')
       .trim()
       .toLowerCase();
+  }
+
+  private applyOfficialFilter(query: any, officialFilter: QuestionOfficialFilter) {
+    if (officialFilter === 'official') return query.eq('official', true);
+    if (officialFilter === 'unofficial') return query.eq('official', false);
+    return query;
+  }
+
+  private parseOfficialImportValue(value: string): boolean {
+    const normalized = this.normalize(value || '');
+    if (!normalized) return true;
+
+    return ![
+      'false',
+      'no',
+      '0',
+      'n',
+      'unofficial',
+      'no oficial',
+      'no-oficial',
+      'no_oficial'
+    ].includes(normalized);
   }
 }
