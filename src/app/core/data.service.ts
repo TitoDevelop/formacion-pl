@@ -547,18 +547,7 @@ export class DataService {
     if (!userId) throw new Error('No hay sesión activa.');
 
     const totalQuestions = await this.countTopicQuestions([topicId], officialFilter);
-    const { data: topicQuestions, error: tqError } = await this.db.client
-      .from('questions').select('id,official').eq('topic_id', topicId);
-    if (tqError) throw tqError;
-    const filteredTopicQuestions = (topicQuestions ?? []).filter(q =>
-      officialFilter === 'all'
-        ? true
-        : officialFilter === 'official'
-          ? q.official === true
-          : q.official === false
-    );
-    const questionIds = filteredTopicQuestions.map(q => q.id);
-    if (!totalQuestions || !questionIds.length) return { totalQuestions:0, answeredQuestions:0, correctAnswers:0, wrongAnswers:0, accuracy:0, completion:0, failedQuestionIds:[], attempts:[] };
+    if (!totalQuestions) return { totalQuestions:0, answeredQuestions:0, correctAnswers:0, wrongAnswers:0, accuracy:0, completion:0, failedQuestionIds:[], attempts:[] };
 
     const { data: attempts, error: aError } = await this.db.client
       .from('test_attempts')
@@ -568,12 +557,10 @@ export class DataService {
     if (aError) throw aError;
 
     const { data: answers, error: ansError } = await this.db.client
-      .from('test_attempt_answers')
-      .select('question_id,is_correct,answered_at,test_attempts!inner(user_id,attempt_type)')
-      .eq('test_attempts.user_id', userId)
-      .in('test_attempts.attempt_type', ['CUSTOM', 'TOPIC'])
-      .in('question_id', questionIds)
-      .order('answered_at', { ascending: true });
+      .rpc('topic_progress_answers', {
+        p_topic_id: topicId,
+        p_official_filter: officialFilter
+      });
     if (ansError) throw ansError;
 
     const latest = new Map<string, { correct: boolean; answered_at: string }>();
