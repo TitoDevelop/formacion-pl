@@ -12,14 +12,14 @@ type AdminOfficialExam = OfficialExam & { attempt_count: number };
   template: `
     <header class="page-title">
       <div>
-        <span class="eyebrow">ADMINISTRACION</span>
+        <span class="eyebrow">ADMINISTRACIÓN</span>
         <h1>Mantenimiento de oficiales</h1>
-        <p>Archiva o recupera examenes oficiales sin borrar el historico de los alumnos.</p>
+        <p>Archiva o recupera exámenes oficiales sin borrar el histórico de los alumnos.</p>
       </div>
     </header>
 
     <section class="metric-grid admin-metrics">
-      <article class="metric"><span>Examenes</span><strong>{{ exams().length }}</strong><small>Total importados</small></article>
+      <article class="metric"><span>Exámenes</span><strong>{{ exams().length }}</strong><small>Total importados</small></article>
       <article class="metric"><span>Publicados</span><strong>{{ activeCount() }}</strong><small>Disponibles para alumnos</small></article>
       <article class="metric"><span>Archivados</span><strong>{{ archivedCount() }}</strong><small>Ocultos en la biblioteca</small></article>
       <article class="metric accent"><span>Intentos</span><strong>{{ attemptCount() }}</strong><small>Historico conservado</small></article>
@@ -29,17 +29,27 @@ type AdminOfficialExam = OfficialExam & { attempt_count: number };
       <div class="admin-toolbar official-admin-toolbar">
         <input
           class="search-input"
-          placeholder="Buscar por nombre, municipio o ano..."
+          placeholder="Buscar por nombre, municipio o año..."
           [ngModel]="search()"
           (ngModelChange)="search.set($event)">
 
         <select
-          class="status-filter"
+          class="status-filter official-filter-select"
           [ngModel]="status()"
           (ngModelChange)="status.set($event)">
           <option value="ALL">Todos</option>
           <option value="ACTIVE">Publicados</option>
           <option value="ARCHIVED">Archivados</option>
+        </select>
+
+        <select
+          class="status-filter official-filter-select"
+          [ngModel]="yearFilter()"
+          (ngModelChange)="yearFilter.set($event)">
+          <option value="ALL">Todos los años</option>
+          @for (year of availableYears(); track year) {
+            <option [value]="year">{{ year }}</option>
+          }
         </select>
 
         <button class="btn" (click)="load()" [disabled]="loading()">
@@ -51,7 +61,7 @@ type AdminOfficialExam = OfficialExam & { attempt_count: number };
       @if (success()) { <div class="form-info">{{ success() }}</div> }
 
       @if (loading()) {
-        <div class="empty-state">Cargando examenes oficiales...</div>
+        <div class="empty-state">Cargando exámenes oficiales...</div>
       } @else {
         <div class="student-table-wrap">
           <table class="student-table official-admin-table">
@@ -59,7 +69,7 @@ type AdminOfficialExam = OfficialExam & { attempt_count: number };
               <tr>
                 <th>Examen</th>
                 <th>Municipio</th>
-                <th>Ano</th>
+                <th>Año</th>
                 <th>Intentos</th>
                 <th>Estado</th>
                 <th></th>
@@ -106,7 +116,7 @@ type AdminOfficialExam = OfficialExam & { attempt_count: number };
               } @empty {
                 <tr>
                   <td colspan="6">
-                    <div class="empty-state">No hay examenes con los filtros actuales.</div>
+                    <div class="empty-state">No hay exámenes con los filtros actuales.</div>
                   </td>
                 </tr>
               }
@@ -121,23 +131,31 @@ export class AdminOfficialExamsComponent implements OnInit {
   exams = signal<AdminOfficialExam[]>([]);
   search = signal('');
   status = signal<'ALL' | 'ACTIVE' | 'ARCHIVED'>('ALL');
+  yearFilter = signal<string>('ALL');
   loading = signal(true);
   error = signal('');
   success = signal('');
   changing = signal<Set<string>>(new Set());
 
+  availableYears = computed(() =>
+    [...new Set(this.exams().map(exam => exam.year))]
+      .sort((a, b) => b - a)
+  );
+
   filtered = computed(() => {
     const q = this.search().trim().toLowerCase();
     const status = this.status();
+    const year = this.yearFilter();
 
     return this.exams().filter(exam => {
       const matchesStatus =
         status === 'ALL' ||
         (status === 'ACTIVE' && exam.active) ||
         (status === 'ARCHIVED' && !exam.active);
+      const matchesYear = year === 'ALL' || String(exam.year) === year;
       const matchesSearch = !q || `${exam.name} ${exam.municipality} ${exam.year}`.toLowerCase().includes(q);
 
-      return matchesStatus && matchesSearch;
+      return matchesStatus && matchesYear && matchesSearch;
     });
   });
 
