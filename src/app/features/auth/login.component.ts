@@ -96,7 +96,7 @@ export class LoginComponent {
   }
 
   get headingText(): string {
-    if (this.mode === 'register') return 'Tu acceso deberá ser validado por un administrador.';
+    if (this.mode === 'register') return 'Tu cuenta quedará pendiente hasta que un administrador habilite el acceso.';
     if (this.mode === 'forgot') return 'Te enviaremos un email para crear una contraseña nueva.';
     return 'Accede a tu zona de preparación.';
   }
@@ -153,7 +153,7 @@ export class LoginComponent {
         if (result.data.session) {
           await this.router.navigate(['/sin-acceso']);
         } else {
-          this.info = 'Cuenta creada. Confirma tu email si es necesario. Después un administrador deberá habilitar tu acceso.';
+          this.info = 'Cuenta creada. Si no has entrado automáticamente, revisa que la confirmación por email esté desactivada en Supabase.';
         }
       }
     } catch (e: any) {
@@ -171,7 +171,7 @@ export class LoginComponent {
     }
 
     if (message.includes('email not confirmed')) {
-      return 'Debes confirmar tu email antes de acceder.';
+      return 'La confirmación por email sigue activa en Supabase. Desactívala para permitir registros sin SMTP.';
     }
 
     if (message.includes('invalid email') || message.includes('email address is invalid')) {

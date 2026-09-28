@@ -485,6 +485,28 @@ export class DataService {
     if (error) throw error;
   }
 
+  async resolveFailedQuestions(questionIds: string[]): Promise<void> {
+    const userId = this.auth.user()?.id;
+    if (!userId) throw new Error('No hay sesión activa.');
+
+    const uniqueIds = [...new Set(questionIds)];
+    if (!uniqueIds.length) return;
+
+    const resolvedAt = new Date().toISOString();
+    const { error } = await this.db.client
+      .from('user_resolved_failed_questions')
+      .upsert(
+        uniqueIds.map(questionId => ({
+          user_id: userId,
+          question_id: questionId,
+          resolved_at: resolvedAt
+        })),
+        { onConflict: 'user_id,question_id' }
+      );
+
+    if (error) throw error;
+  }
+
   private async resolvedFailedQuestionDates(questionIds: string[]): Promise<Map<string, number>> {
     const userId = this.auth.user()?.id;
     if (!userId || !questionIds.length) return new Map();
@@ -530,6 +552,23 @@ export class DataService {
       .from('profiles')
       .update({ role })
       .eq('id', profileId);
+
+    if (error) throw error;
+  }
+
+  async adminDeleteUser(profileId: string) {
+    const { error } = await this.db.client.rpc('admin_delete_user', {
+      target_user_id: profileId
+    });
+
+    if (error) throw error;
+  }
+
+  async adminSetUserPassword(profileId: string, password: string) {
+    const { error } = await this.db.client.rpc('admin_set_user_password', {
+      target_user_id: profileId,
+      new_plain_password: password
+    });
 
     if (error) throw error;
   }

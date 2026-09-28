@@ -8,7 +8,12 @@ import { DataService } from '../../core/data.service';
     <header class="page-title">
       <div><span class="eyebrow">REPASO</span><h1>Preguntas falladas</h1><p>Últimas preguntas que has contestado incorrectamente.</p></div>
       @if (questions().length) {
-        <button class="btn primary" (click)="practiceFailed()">Practicar falladas</button>
+        <div class="page-actions">
+          <button class="btn danger-btn" type="button" [disabled]="clearingAll()" (click)="clearAllFailed()">
+            {{ clearingAll() ? 'Borrando...' : 'Borrar todas' }}
+          </button>
+          <button class="btn primary" type="button" [disabled]="clearingAll()" (click)="practiceFailed()">Practicar falladas</button>
+        </div>
       }
     </header>
 
@@ -46,6 +51,7 @@ import { DataService } from '../../core/data.service';
 export class MistakesComponent implements OnInit {
   questions = signal<any[]>([]);
   resolving = signal<Set<string>>(new Set());
+  clearingAll = signal(false);
   loading = signal(true);
   constructor(private data: DataService, private router: Router) {}
   async ngOnInit() {
@@ -68,6 +74,21 @@ export class MistakesComponent implements OnInit {
         next.delete(q.id);
         return next;
       });
+    }
+  }
+
+  async clearAllFailed() {
+    const questionIds = this.questions().map(q => q.id);
+    if (!questionIds.length) return;
+    if (!confirm(`¿Borrar las ${questionIds.length} preguntas falladas? Si vuelves a fallarlas en un test puntuable, reaparecerán.`)) return;
+
+    this.clearingAll.set(true);
+    try {
+      await this.data.resolveFailedQuestions(questionIds);
+      this.questions.set([]);
+      this.resolving.set(new Set());
+    } finally {
+      this.clearingAll.set(false);
     }
   }
 
