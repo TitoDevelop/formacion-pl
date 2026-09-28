@@ -45,10 +45,15 @@ type AuthMode = 'login' | 'register' | 'forgot';
             <input [(ngModel)]="fullName" placeholder="Tu nombre">
           }
 
-          <label>Email</label>
-          <input type="email" [(ngModel)]="email" placeholder="nombre@email.com">
+          @if (mode === 'forgot') {
+            <div class="form-info">
+              <strong>Recuperación de acceso</strong>
+              <span>Contacta con tu tutor o con un administrador para crear una nueva contraseña.</span>
+            </div>
+          } @else {
+            <label>Email</label>
+            <input type="email" [(ngModel)]="email" placeholder="nombre@email.com">
 
-          @if (mode !== 'forgot') {
             <label>Contraseña</label>
             <input type="password" [(ngModel)]="password" placeholder="Mínimo 6 caracteres">
           }
@@ -56,9 +61,11 @@ type AuthMode = 'login' | 'register' | 'forgot';
           @if (error) { <div class="form-error">{{ error }}</div> }
           @if (info) { <div class="form-info">{{ info }}</div> }
 
-          <button class="btn primary wide auth-submit" (click)="submit()" [disabled]="loading">
-            {{ submitText }}
-          </button>
+          @if (mode !== 'forgot') {
+            <button class="btn primary wide auth-submit" (click)="submit()" [disabled]="loading">
+              {{ submitText }}
+            </button>
+          }
 
           @if (mode === 'login') {
             <button class="text-button auth-secondary-action" (click)="setMode('forgot')">He olvidado mi contraseña</button>
@@ -97,14 +104,14 @@ export class LoginComponent {
 
   get headingText(): string {
     if (this.mode === 'register') return 'Tu cuenta quedará pendiente hasta que un administrador habilite el acceso.';
-    if (this.mode === 'forgot') return 'Te enviaremos un email para crear una contraseña nueva.';
+    if (this.mode === 'forgot') return 'Te ayudaremos a recuperar el acceso sin usar correo automático.';
     return 'Accede a tu zona de preparación.';
   }
 
   get submitText(): string {
     if (this.loading) return 'Procesando...';
     if (this.mode === 'register') return 'CREAR CUENTA';
-    if (this.mode === 'forgot') return 'ENVIAR EMAIL';
+    if (this.mode === 'forgot') return 'RECUPERAR ACCESO';
     return 'ENTRAR EN ALPHA';
   }
 
@@ -135,13 +142,7 @@ export class LoginComponent {
 
         await this.router.navigate(['/app/dashboard']);
       } else if (this.mode === 'forgot') {
-        if (!this.email) {
-          this.error = 'Introduce tu email para enviarte el enlace.';
-          return;
-        }
-
-        await this.auth.requestPasswordReset(this.email);
-        this.info = 'Te hemos enviado un email con el enlace para restablecer tu contraseña.';
+        return;
       } else {
         if (!this.email || !this.password || !this.fullName) {
           this.error = 'Completa nombre, email y contraseña.';

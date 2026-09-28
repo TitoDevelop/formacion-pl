@@ -189,6 +189,7 @@ a{text-decoration:none;color:inherit}
 .panel label.dropzone{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;text-align:center}
 .dropzone strong,.dropzone span{width:100%;line-height:1.35}
 .file-ok,.form-info{background:#edf9f1;color:#10743b;border-radius:9px;padding:11px;margin-top:12px}
+.form-info strong,.form-info span{display:block}.form-info span{margin-top:4px}
 .form-error{background:#fff0f0;color:#b42318;border-radius:9px;padding:11px;margin:12px 0}
 .panel label,.auth-card label,.access-card label{display:block;font-size:12px;font-weight:800;margin:13px 0 6px;color:var(--brand-navy);text-align:left}
 .panel input,.panel select,.auth-card input,.access-card input,.search-input{width:100%;border:1px solid #ced2dc;border-radius:9px;padding:11px;background:#fff;outline:none}
