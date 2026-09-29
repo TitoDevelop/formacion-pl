@@ -9,6 +9,9 @@ create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   email text,
   full_name text,
+  first_name text,
+  last_name_1 text,
+  last_name_2 text,
   role text not null default 'STUDENT' check (role in ('STUDENT','ADMIN')),
   access_enabled boolean not null default false,
   created_at timestamptz not null default now()
@@ -131,6 +134,9 @@ create table if not exists public.topic_resources (
 -- MIGRACIONES SOBRE BASES EXISTENTES
 alter table public.profiles
   add column if not exists email text,
+  add column if not exists first_name text,
+  add column if not exists last_name_1 text,
+  add column if not exists last_name_2 text,
   add column if not exists access_enabled boolean not null default false;
 
 alter table public.test_attempts
@@ -170,17 +176,23 @@ language plpgsql
 security definer set search_path = public
 as $$
 begin
-  insert into public.profiles(id, email, full_name, role, access_enabled)
+  insert into public.profiles(id, email, full_name, first_name, last_name_1, last_name_2, role, access_enabled)
   values(
     new.id,
     new.email,
     coalesce(new.raw_user_meta_data->>'full_name',''),
+    nullif(new.raw_user_meta_data->>'first_name',''),
+    nullif(new.raw_user_meta_data->>'last_name_1',''),
+    nullif(new.raw_user_meta_data->>'last_name_2',''),
     'STUDENT',
     false
   )
   on conflict (id) do update
     set email = excluded.email,
-        full_name = coalesce(nullif(excluded.full_name,''), public.profiles.full_name);
+        full_name = coalesce(nullif(excluded.full_name,''), public.profiles.full_name),
+        first_name = coalesce(excluded.first_name, public.profiles.first_name),
+        last_name_1 = coalesce(excluded.last_name_1, public.profiles.last_name_1),
+        last_name_2 = coalesce(excluded.last_name_2, public.profiles.last_name_2);
   return new;
 end;
 $$;

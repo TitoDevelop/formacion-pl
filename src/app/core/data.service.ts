@@ -531,11 +531,30 @@ export class DataService {
   async adminListStudents() {
     const { data, error } = await this.db.client
       .from('profiles')
-      .select('id,email,full_name,role,access_enabled,created_at')
+      .select('id,email,full_name,first_name,last_name_1,last_name_2,role,access_enabled,created_at')
       .order('created_at', { ascending: false });
 
     if (error) throw error;
     return data ?? [];
+  }
+
+  async adminUpdateStudentName(profileId: string, firstName: string, lastName1: string, lastName2: string) {
+    const trimmedFirstName = firstName.trim();
+    const trimmedLastName1 = lastName1.trim();
+    const trimmedLastName2 = lastName2.trim();
+    const fullName = [trimmedFirstName, trimmedLastName1, trimmedLastName2].filter(Boolean).join(' ');
+
+    const { error } = await this.db.client
+      .from('profiles')
+      .update({
+        first_name: trimmedFirstName || null,
+        last_name_1: trimmedLastName1 || null,
+        last_name_2: trimmedLastName2 || null,
+        full_name: fullName || null
+      })
+      .eq('id', profileId);
+
+    if (error) throw error;
   }
 
   async adminSetAccess(profileId: string, enabled: boolean) {

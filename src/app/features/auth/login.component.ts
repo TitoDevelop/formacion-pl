@@ -42,7 +42,13 @@ type AuthMode = 'login' | 'register' | 'forgot';
 
           @if (mode === 'register') {
             <label>Nombre</label>
-            <input [(ngModel)]="fullName" placeholder="Tu nombre">
+            <input [(ngModel)]="firstName" placeholder="Tu nombre" autocomplete="given-name">
+
+            <label>Primer apellido</label>
+            <input [(ngModel)]="lastName1" placeholder="Primer apellido" autocomplete="family-name">
+
+            <label>Segundo apellido</label>
+            <input [(ngModel)]="lastName2" placeholder="Segundo apellido">
           }
 
           @if (mode === 'forgot') {
@@ -83,7 +89,9 @@ export class LoginComponent {
   mode: AuthMode = 'login';
   email = '';
   password = '';
-  fullName = '';
+  firstName = '';
+  lastName1 = '';
+  lastName2 = '';
   loading = false;
   error = '';
   info = '';
@@ -144,12 +152,12 @@ export class LoginComponent {
       } else if (this.mode === 'forgot') {
         return;
       } else {
-        if (!this.email || !this.password || !this.fullName) {
-          this.error = 'Completa nombre, email y contraseña.';
+        if (!this.email || !this.password || !this.firstName.trim() || !this.lastName1.trim() || !this.lastName2.trim()) {
+          this.error = 'Completa nombre, dos apellidos, email y contraseña.';
           return;
         }
 
-        const result = await this.auth.register(this.email, this.password, this.fullName);
+        const result = await this.auth.register(this.email, this.password, this.firstName, this.lastName1, this.lastName2);
 
         if (result.data.session) {
           await this.router.navigate(['/sin-acceso']);

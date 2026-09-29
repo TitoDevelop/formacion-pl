@@ -30,11 +30,19 @@ export class AuthService {
     await this.loadProfile();
   }
 
-  async register(email: string, password: string, fullName: string) {
+  async register(email: string, password: string, firstName: string, lastName1: string, lastName2: string) {
+    const fullName = [firstName, lastName1, lastName2].map(value => value.trim()).filter(Boolean).join(' ');
     const result = await this.db.client.auth.signUp({
       email,
       password,
-      options: { data: { full_name: fullName } }
+      options: {
+        data: {
+          full_name: fullName,
+          first_name: firstName.trim(),
+          last_name_1: lastName1.trim(),
+          last_name_2: lastName2.trim()
+        }
+      }
     });
     if (result.error) throw result.error;
     return result;
@@ -68,7 +76,7 @@ export class AuthService {
 
     const { data, error } = await this.db.client
       .from('profiles')
-      .select('id,email,full_name,role,access_enabled')
+      .select('id,email,full_name,first_name,last_name_1,last_name_2,role,access_enabled')
       .eq('id', u.id)
       .single();
 

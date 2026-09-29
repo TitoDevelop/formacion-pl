@@ -6,6 +6,9 @@ export interface Profile {
   id: string;
   email: string | null;
   full_name: string | null;
+  first_name: string | null;
+  last_name_1: string | null;
+  last_name_2: string | null;
   role: UserRole;
   access_enabled: boolean;
 }

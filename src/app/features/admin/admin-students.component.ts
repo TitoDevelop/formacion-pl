@@ -49,7 +49,10 @@ import { DataService } from '../../core/data.service';
           <tbody>
             @for (s of filtered(); track s.id) {
               <tr>
-                <td><strong>{{ s.full_name || 'Sin nombre' }}</strong></td>
+                <td>
+                  <strong>{{ displayName(s) || 'Sin nombre' }}</strong>
+                  @if (missingNameParts(s)) { <small class="own-role-note">Datos incompletos</small> }
+                </td>
                 <td>{{ s.email || '—' }}</td>
                 <td>
                   <select
@@ -57,7 +60,7 @@ import { DataService } from '../../core/data.service';
                     [class.admin]="s.role==='ADMIN'"
                     [ngModel]="s.role"
                     [disabled]="s.id === auth.user()?.id || changingRoles().has(s.id)"
-                    [attr.aria-label]="'Rol de ' + (s.full_name || s.email || 'usuario')"
+                    [attr.aria-label]="'Rol de ' + (displayName(s) || s.email || 'usuario')"
                     (ngModelChange)="changeRole(s, $event)">
                     <option value="STUDENT">Alumno</option>
                     <option value="ADMIN">Administrador</option>
@@ -91,6 +94,13 @@ import { DataService } from '../../core/data.service';
                       {{ changingPasswords().has(s.id) ? 'Guardando...' : 'Cambiar contraseña' }}
                     </button>
                     <button
+                      class="btn"
+                      [disabled]="savingStudentDetails() || deletingUsers().has(s.id)"
+                      title="Editar nombre y apellidos"
+                      (click)="openStudentDetailsDialog(s)">
+                      Editar datos
+                    </button>
+                    <button
                       class="btn danger-btn"
                       [disabled]="s.id === auth.user()?.id || changingPasswords().has(s.id) || deletingUsers().has(s.id)"
                       [title]="s.id === auth.user()?.id ? 'No puedes eliminar tu propia cuenta' : 'Eliminar usuario'"
@@ -114,7 +124,7 @@ import { DataService } from '../../core/data.service';
           <h2 id="password-dialog-title">Cambiar contraseña</h2>
           <p>
             Nueva contraseña para
-            <strong>{{ passwordDialogStudent().full_name || passwordDialogStudent().email || 'este usuario' }}</strong>.
+            <strong>{{ displayName(passwordDialogStudent()) || passwordDialogStudent().email || 'este usuario' }}</strong>.
           </p>
 
           <label>Nueva contraseña</label>
@@ -138,6 +148,53 @@ import { DataService } from '../../core/data.service';
       </div>
     }
 
+    @if (studentDetailsDialogStudent()) {
+      <div class="mode-picker-backdrop" (click)="closeStudentDetailsDialog()">
+        <section class="panel mode-picker admin-password-dialog" role="dialog" aria-modal="true" aria-labelledby="student-details-dialog-title" (click)="$event.stopPropagation()">
+          <button class="mode-picker-close" type="button" aria-label="Cerrar" (click)="closeStudentDetailsDialog()">×</button>
+          <span class="eyebrow">DATOS DEL ALUMNO</span>
+          <h2 id="student-details-dialog-title">Editar alumno</h2>
+          <p>
+            Actualiza el nombre y apellidos de
+            <strong>{{ displayName(studentDetailsDialogStudent()) || studentDetailsDialogStudent().email || 'este usuario' }}</strong>.
+          </p>
+
+          <label>Nombre</label>
+          <input
+            class="admin-password-input"
+            [ngModel]="studentFirstName()"
+            (ngModelChange)="studentFirstName.set($event)"
+            placeholder="Nombre"
+            autocomplete="off">
+
+          <label>Primer apellido</label>
+          <input
+            class="admin-password-input"
+            [ngModel]="studentLastName1()"
+            (ngModelChange)="studentLastName1.set($event)"
+            placeholder="Primer apellido"
+            autocomplete="off">
+
+          <label>Segundo apellido</label>
+          <input
+            class="admin-password-input"
+            [ngModel]="studentLastName2()"
+            (ngModelChange)="studentLastName2.set($event)"
+            placeholder="Segundo apellido"
+            autocomplete="off">
+
+          @if (studentDetailsError()) { <div class="form-error">{{ studentDetailsError() }}</div> }
+
+          <div class="exit-test-actions">
+            <button class="btn" type="button" [disabled]="savingStudentDetails()" (click)="closeStudentDetailsDialog()">Cancelar</button>
+            <button class="btn primary" type="button" [disabled]="savingStudentDetails()" (click)="saveStudentDetailsDialog()">
+              {{ savingStudentDetails() ? 'Guardando...' : 'Guardar datos' }}
+            </button>
+          </div>
+        </section>
+      </div>
+    }
+
     @if (deleteDialogStudent()) {
       <div class="mode-picker-backdrop" (click)="closeDeleteDialog()">
         <section class="panel mode-picker admin-delete-dialog" role="dialog" aria-modal="true" aria-labelledby="delete-dialog-title" (click)="$event.stopPropagation()">
@@ -146,7 +203,7 @@ import { DataService } from '../../core/data.service';
           <h2 id="delete-dialog-title">Eliminar alumno</h2>
           <p>
             Vas a eliminar definitivamente a
-            <strong>{{ deleteDialogStudent().full_name || deleteDialogStudent().email || 'este usuario' }}</strong>.
+            <strong>{{ displayName(deleteDialogStudent()) || deleteDialogStudent().email || 'este usuario' }}</strong>.
             Se borrarán también sus intentos, borradores y progreso.
           </p>
 
@@ -175,6 +232,12 @@ export class AdminStudentsComponent implements OnInit {
   passwordValue = signal('Alpha2026!');
   passwordError = signal('');
   savingPassword = signal(false);
+  studentDetailsDialogStudent = signal<any | null>(null);
+  studentFirstName = signal('');
+  studentLastName1 = signal('');
+  studentLastName2 = signal('');
+  studentDetailsError = signal('');
+  savingStudentDetails = signal(false);
   deleteDialogStudent = signal<any | null>(null);
   deleteError = signal('');
   savingDelete = signal(false);
@@ -184,7 +247,7 @@ export class AdminStudentsComponent implements OnInit {
     if (!q) return this.students();
 
     return this.students().filter(s =>
-      `${s.full_name ?? ''} ${s.email ?? ''}`.toLowerCase().includes(q)
+      `${this.displayName(s)} ${s.email ?? ''}`.toLowerCase().includes(q)
     );
   });
 
@@ -253,6 +316,76 @@ export class AdminStudentsComponent implements OnInit {
     }
   }
 
+  displayName(student: any): string {
+    if (!student) return '';
+
+    return [student.first_name, student.last_name_1, student.last_name_2]
+      .map(value => String(value ?? '').trim())
+      .filter(Boolean)
+      .join(' ') || String(student.full_name ?? '').trim();
+  }
+
+  missingNameParts(student: any): boolean {
+    return !String(student?.first_name ?? '').trim()
+      || !String(student?.last_name_1 ?? '').trim()
+      || !String(student?.last_name_2 ?? '').trim();
+  }
+
+  openStudentDetailsDialog(student: any) {
+    this.studentDetailsDialogStudent.set(student);
+    this.studentFirstName.set(student.first_name || this.fallbackFirstName(student.full_name));
+    this.studentLastName1.set(student.last_name_1 || '');
+    this.studentLastName2.set(student.last_name_2 || '');
+    this.studentDetailsError.set('');
+    this.error.set('');
+    this.info.set('');
+  }
+
+  closeStudentDetailsDialog() {
+    if (this.savingStudentDetails()) return;
+
+    this.studentDetailsDialogStudent.set(null);
+    this.studentDetailsError.set('');
+  }
+
+  async saveStudentDetailsDialog() {
+    const student = this.studentDetailsDialogStudent();
+    if (!student) return;
+
+    const firstName = this.studentFirstName().trim();
+    const lastName1 = this.studentLastName1().trim();
+    const lastName2 = this.studentLastName2().trim();
+    if (!firstName || !lastName1 || !lastName2) {
+      this.studentDetailsError.set('Completa nombre y los dos apellidos.');
+      return;
+    }
+
+    this.savingStudentDetails.set(true);
+    this.studentDetailsError.set('');
+    this.error.set('');
+    this.info.set('');
+
+    try {
+      await this.data.adminUpdateStudentName(student.id, firstName, lastName1, lastName2);
+      const fullName = [firstName, lastName1, lastName2].join(' ');
+      this.students.update(list =>
+        list.map(s => s.id === student.id
+          ? { ...s, first_name: firstName, last_name_1: lastName1, last_name_2: lastName2, full_name: fullName }
+          : s)
+      );
+      this.info.set(`Datos actualizados para ${fullName}.`);
+      this.studentDetailsDialogStudent.set(null);
+    } catch (e: any) {
+      this.studentDetailsError.set(e?.message ?? 'No se pudieron guardar los datos.');
+    } finally {
+      this.savingStudentDetails.set(false);
+    }
+  }
+
+  private fallbackFirstName(fullName: string | null | undefined): string {
+    return String(fullName ?? '').trim();
+  }
+
   openDeleteDialog(student: any) {
     if (student.id === this.auth.user()?.id) return;
 
@@ -318,7 +451,7 @@ export class AdminStudentsComponent implements OnInit {
     const student = this.passwordDialogStudent();
     if (!student || student.id === this.auth.user()?.id) return;
 
-    const label = student.full_name || student.email || 'este usuario';
+    const label = this.displayName(student) || student.email || 'este usuario';
     const trimmed = this.passwordValue().trim();
     if (trimmed.length < 6) {
       this.passwordError.set('La contraseña debe tener al menos 6 caracteres.');
