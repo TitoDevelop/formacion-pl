@@ -418,7 +418,7 @@ export class DataService {
 
     const { data, error } = await this.db.client
       .from('test_attempts')
-      .select('id,title,attempt_type,mode,total_questions,correct_answers,wrong_answers,score,finished_at,duration_seconds')
+      .select('id,title,attempt_type,mode,total_questions,correct_answers,wrong_answers,score,finished_at,duration_seconds,topic_ids,official_exams(name, municipality, year)')
       .eq('user_id', userId)
       .gte('finished_at', from)
       .order('finished_at', { ascending: false });

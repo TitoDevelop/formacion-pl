@@ -237,7 +237,7 @@ export class ExamPlayerComponent implements OnInit, OnDestroy {
         exam.id,
         'OFFICIAL',
         this.mode(),
-        exam.name,
+        this.officialAttemptTitle(exam),
         null,
         payload,
         timing
@@ -248,5 +248,9 @@ export class ExamPlayerComponent implements OnInit, OnDestroy {
     } finally {
       this.submitting.set(false);
     }
+  }
+
+  private officialAttemptTitle(exam: OfficialExam) {
+    return `Examen oficial de ${exam.municipality}${exam.year ? ` ${exam.year}` : ''}`;
   }
 }
