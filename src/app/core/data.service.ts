@@ -7,6 +7,8 @@ import {
   ImportGroup,
   OfficialExam,
   Question,
+  QuestionIssue,
+  QuestionIssueStatus,
   QuestionOfficialFilter,
   TestMode,
   Topic,
@@ -291,6 +293,29 @@ export class DataService {
         .eq('user_id', userId)
         .eq('question_id', questionId);
       if (error) throw error;
+    }
+  }
+
+  async reportQuestionIssue(questionId: string, message: string): Promise<void> {
+    const userId = this.auth.user()?.id;
+    if (!userId) throw new Error('No hay sesion activa.');
+
+    const cleanMessage = message.trim();
+    if (cleanMessage.length < 5) throw new Error('Describe brevemente que habria que revisar.');
+
+    const { error } = await this.db.client
+      .from('question_issue_reports')
+      .insert({
+        question_id: questionId,
+        user_id: userId,
+        message: cleanMessage
+      });
+
+    if (error) {
+      if ((error as any).code === '23505') {
+        throw new Error('Ya hay un aviso pendiente para esta pregunta.');
+      }
+      throw error;
     }
   }
 
@@ -650,6 +675,38 @@ export class DataService {
     }));
   }
 
+  async adminListQuestionIssues(status: QuestionIssueStatus | 'all' = 'OPEN'): Promise<QuestionIssue[]> {
+    let query = this.db.client
+      .from('question_issue_reports')
+      .select(`
+        id, question_id, user_id, message, status, created_at, resolved_at, resolved_by,
+        questions (
+          id, statement, explanation, topic_id, official, source_reference,
+          question_options (id, question_id, text, position, is_correct)
+        ),
+        profiles!question_issue_reports_user_id_fkey (
+          id, email, full_name, first_name, last_name_1, last_name_2
+        ),
+        resolver:profiles!question_issue_reports_resolved_by_fkey (
+          id, email, full_name, first_name, last_name_1, last_name_2
+        )
+      `)
+      .order('created_at', { ascending: false });
+
+    if (status !== 'all') query = query.eq('status', status);
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    return ((data ?? []) as unknown as QuestionIssue[]).map(issue => ({
+      ...issue,
+      questions: issue.questions ? {
+        ...issue.questions,
+        question_options: [...(issue.questions.question_options ?? [])].sort((a, b) => a.position - b.position)
+      } : issue.questions
+    }));
+  }
+
   async adminUpdateTopicQuestion(questionId: string, update: AdminTopicQuestionUpdate): Promise<void> {
     const statement = update.statement.trim();
     if (!statement) throw new Error('El enunciado no puede estar vacio.');
@@ -687,6 +744,27 @@ export class DataService {
 
       if (optionError) throw optionError;
     }
+  }
+
+  async adminSetQuestionIssueStatus(issueId: string, status: QuestionIssueStatus): Promise<void> {
+    const patch = status === 'RESOLVED'
+      ? {
+          status,
+          resolved_at: new Date().toISOString(),
+          resolved_by: this.auth.user()?.id ?? null
+        }
+      : {
+          status,
+          resolved_at: null,
+          resolved_by: null
+        };
+
+    const { error } = await this.db.client
+      .from('question_issue_reports')
+      .update(patch)
+      .eq('id', issueId);
+
+    if (error) throw error;
   }
 
   async adminDeleteTopicQuestion(questionId: string): Promise<void> {

@@ -1,6 +1,7 @@
 export type UserRole = 'STUDENT' | 'ADMIN';
 export type TestMode = 'EXAM' | 'PRACTICE';
 export type QuestionOfficialFilter = 'all' | 'official' | 'unofficial';
+export type QuestionIssueStatus = 'OPEN' | 'RESOLVED';
 
 export interface Profile {
   id: string;
@@ -53,6 +54,20 @@ export interface AdminTopicQuestionUpdate {
     position: number;
     is_correct: boolean;
   }[];
+}
+
+export interface QuestionIssue {
+  id: string;
+  question_id: string;
+  user_id: string;
+  message: string;
+  status: QuestionIssueStatus;
+  created_at: string;
+  resolved_at: string | null;
+  resolved_by: string | null;
+  questions?: Question | null;
+  profiles?: Pick<Profile, 'id' | 'email' | 'full_name' | 'first_name' | 'last_name_1' | 'last_name_2'> | null;
+  resolver?: Pick<Profile, 'id' | 'email' | 'full_name' | 'first_name' | 'last_name_1' | 'last_name_2'> | null;
 }
 
 export interface OfficialExam {

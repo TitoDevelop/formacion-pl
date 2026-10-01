@@ -1,7 +1,10 @@
 import { Component, OnInit, computed, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { DataService } from '../../core/data.service';
-import { AdminTopicQuestionStats, AdminTopicQuestionUpdate, Question } from '../../core/models';
+import { AdminTopicQuestionStats, AdminTopicQuestionUpdate, Question, QuestionIssue, QuestionIssueStatus } from '../../core/models';
+
+type AdminQuestionTab = 'maintenance' | 'issues';
+type AdminIssueFilter = QuestionIssueStatus | 'all';
 
 @Component({
   standalone: true,
@@ -23,6 +26,16 @@ import { AdminTopicQuestionStats, AdminTopicQuestionUpdate, Question } from '../
     @if (error()) { <div class="form-error">{{ error() }}</div> }
     @if (success()) { <div class="form-info">{{ success() }}</div> }
 
+    <div class="test-library-tabs admin-question-tabs">
+      <button type="button" [class.active]="activeTab() === 'maintenance'" (click)="activeTab.set('maintenance')">
+        Mantenimiento
+      </button>
+      <button type="button" [class.active]="activeTab() === 'issues'" (click)="showIssues()">
+        Revision de errores
+      </button>
+    </div>
+
+    @if (activeTab() === 'maintenance') {
     <div class="topic-question-admin-layout">
       <section class="panel topic-admin-list-panel">
         <div class="panel-head">
@@ -177,12 +190,89 @@ import { AdminTopicQuestionStats, AdminTopicQuestionUpdate, Question } from '../
         }
       </section>
     </div>
+    } @else {
+      <section class="panel">
+        <div class="panel-head issue-admin-head">
+          <div>
+            <h2>Revision de errores</h2>
+            <p>{{ issues().length }} avisos cargados</p>
+          </div>
+          <div class="issue-admin-actions">
+            <select
+              class="official-filter-select"
+              [ngModel]="issueStatusFilter()"
+              (ngModelChange)="changeIssueFilter($event)">
+              <option value="OPEN">Pendientes</option>
+              <option value="RESOLVED">Solucionados</option>
+              <option value="all">Todos</option>
+            </select>
+            <button class="btn" type="button" [disabled]="loadingIssues()" (click)="loadIssues()">
+              {{ loadingIssues() ? 'Cargando...' : 'Recargar' }}
+            </button>
+          </div>
+        </div>
+
+        @if (loadingIssues()) {
+          <div class="empty-state">Cargando avisos...</div>
+        } @else {
+          <div class="issue-admin-list">
+            @for (issue of issues(); track issue.id) {
+              <article class="issue-admin-card" [class.resolved]="issue.status === 'RESOLVED'">
+                <div class="issue-admin-card-head">
+                  <div>
+                    <span class="issue-status" [class.resolved]="issue.status === 'RESOLVED'">
+                      {{ issue.status === 'RESOLVED' ? 'Solucionado' : 'Pendiente' }}
+                    </span>
+                    <strong>{{ issue.questions?.statement || 'Pregunta eliminada' }}</strong>
+                    <small>
+                      {{ formatProfileName(issue.profiles) }} - {{ formatDate(issue.created_at) }}
+                      @if (issue.questions?.source_reference) { · {{ issue.questions?.source_reference }} }
+                    </small>
+                  </div>
+                  <div class="topic-question-actions">
+                    @if (issue.questions?.topic_id) {
+                      <button class="btn" type="button" (click)="openIssueQuestion(issue)">Abrir pregunta</button>
+                    }
+                    @if (issue.status === 'OPEN') {
+                      <button class="btn success-btn" type="button" [disabled]="saving()" (click)="setIssueStatus(issue, 'RESOLVED')">
+                        Marcar solucionado
+                      </button>
+                    } @else {
+                      <button class="btn" type="button" [disabled]="saving()" (click)="setIssueStatus(issue, 'OPEN')">
+                        Reabrir
+                      </button>
+                    }
+                  </div>
+                </div>
+
+                <p class="issue-message">{{ issue.message }}</p>
+
+                @if (issue.questions) {
+                  <div class="question-option-preview">
+                    @for (option of sortedOptions(issue.questions); track option.id; let i = $index) {
+                      <span [class.correct]="option.is_correct">
+                        {{ optionLetter(i) }}. {{ option.text }}
+                      </span>
+                    }
+                  </div>
+                }
+              </article>
+            } @empty {
+              <div class="empty-state">No hay avisos con este filtro.</div>
+            }
+          </div>
+        }
+      </section>
+    }
   `
 })
 export class AdminTopicQuestionsComponent implements OnInit {
+  activeTab = signal<AdminQuestionTab>('maintenance');
   topics = signal<AdminTopicQuestionStats[]>([]);
   selectedTopic = signal<AdminTopicQuestionStats | null>(null);
   questions = signal<Question[]>([]);
+  issues = signal<QuestionIssue[]>([]);
+  issueStatusFilter = signal<AdminIssueFilter>('OPEN');
   topicSearch = signal('');
   questionSearch = signal('');
   page = signal(1);
@@ -191,6 +281,7 @@ export class AdminTopicQuestionsComponent implements OnInit {
   editModel = signal<AdminTopicQuestionUpdate | null>(null);
   loadingTopics = signal(true);
   loadingQuestions = signal(false);
+  loadingIssues = signal(false);
   saving = signal(false);
   error = signal('');
   success = signal('');
@@ -264,6 +355,72 @@ export class AdminTopicQuestionsComponent implements OnInit {
       this.error.set(e?.message ?? 'No se pudieron cargar las preguntas.');
     } finally {
       this.loadingQuestions.set(false);
+    }
+  }
+
+  async showIssues() {
+    this.activeTab.set('issues');
+    if (!this.issues().length) await this.loadIssues();
+  }
+
+  async loadIssues() {
+    this.loadingIssues.set(true);
+    this.error.set('');
+
+    try {
+      this.issues.set(await this.data.adminListQuestionIssues(this.issueStatusFilter()));
+    } catch (e: any) {
+      this.error.set(e?.message ?? 'No se pudieron cargar los avisos.');
+    } finally {
+      this.loadingIssues.set(false);
+    }
+  }
+
+  async changeIssueFilter(value: string) {
+    const next = value === 'RESOLVED' || value === 'all' ? value : 'OPEN';
+    this.issueStatusFilter.set(next);
+    await this.loadIssues();
+  }
+
+  async openIssueQuestion(issue: QuestionIssue) {
+    const topicId = issue.questions?.topic_id;
+    if (!topicId) return;
+
+    this.activeTab.set('maintenance');
+
+    let topic = this.topics().find(item => item.id === topicId);
+    if (!topic) {
+      await this.loadTopics();
+      topic = this.topics().find(item => item.id === topicId);
+    }
+
+    if (!topic) {
+      this.error.set('No se encontro el tema asociado a la pregunta.');
+      return;
+    }
+
+    await this.selectTopic(topic);
+    const question = this.questions().find(item => item.id === issue.question_id);
+    if (question) {
+      this.questionSearch.set(question.statement.slice(0, 80));
+      this.page.set(1);
+      this.startEdit(question);
+    }
+  }
+
+  async setIssueStatus(issue: QuestionIssue, status: QuestionIssueStatus) {
+    this.saving.set(true);
+    this.error.set('');
+    this.success.set('');
+
+    try {
+      await this.data.adminSetQuestionIssueStatus(issue.id, status);
+      await this.loadIssues();
+      this.success.set(status === 'RESOLVED' ? 'Aviso marcado como solucionado.' : 'Aviso reabierto.');
+    } catch (e: any) {
+      this.error.set(e?.message ?? 'No se pudo actualizar el aviso.');
+    } finally {
+      this.saving.set(false);
     }
   }
 
@@ -395,6 +552,23 @@ export class AdminTopicQuestionsComponent implements OnInit {
 
   optionLetter(index: number) {
     return ['A', 'B', 'C', 'D'][index] ?? '?';
+  }
+
+  formatProfileName(profile: QuestionIssue['profiles']) {
+    if (!profile) return 'Alumno';
+    const fullName = profile.full_name || [profile.first_name, profile.last_name_1, profile.last_name_2].filter(Boolean).join(' ');
+    return fullName || profile.email || 'Alumno';
+  }
+
+  formatDate(value: string | null) {
+    if (!value) return '';
+    return new Intl.DateTimeFormat('es-ES', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    }).format(new Date(value));
   }
 
   private validate(model: AdminTopicQuestionUpdate) {

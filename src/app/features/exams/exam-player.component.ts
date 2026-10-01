@@ -1,4 +1,5 @@
 import { Component, OnDestroy, OnInit, computed, signal } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { DataService } from '../../core/data.service';
 import { ExamQuestionRow, OfficialExam, QuestionOption, TestMode } from '../../core/models';
@@ -6,6 +7,7 @@ import { TestTimer, formatDuration } from '../../core/test-timer';
 
 @Component({
   standalone: true,
+  imports: [FormsModule],
   template: `
     @if (loading()) {
       <div class="panel empty-state">Preparando examen...</div>
@@ -28,12 +30,17 @@ import { TestTimer, formatDuration } from '../../core/test-timer';
         <article class="question-card">
           <div class="question-toolbar">
             <span class="question-meta">Pregunta {{ row.question_number || currentIndex()+1 }}</span>
-            <button
-              class="review-btn"
-              [class.marked]="marked().has(row.question_id)"
-              (click)="toggleMarked(row.question_id)">
-              {{ marked().has(row.question_id) ? '★ Marcada para repasar' : '☆ Marcar para repasar' }}
-            </button>
+            <div class="question-card-actions">
+              <button
+                class="review-btn"
+                [class.marked]="marked().has(row.question_id)"
+                (click)="toggleMarked(row.question_id)">
+                {{ marked().has(row.question_id) ? '★ Marcada para repasar' : '☆ Marcar para repasar' }}
+              </button>
+              <button class="issue-btn" type="button" (click)="openIssueDialog(row.question_id)">
+                Avisar error
+              </button>
+            </div>
           </div>
 
           <h2>{{ row.questions.statement }}</h2>
@@ -101,6 +108,25 @@ import { TestTimer, formatDuration } from '../../core/test-timer';
           </section>
         </div>
       }
+
+      @if (issueQuestionId()) {
+        <div class="mode-picker-backdrop" (click)="closeIssueDialog()">
+          <section class="panel mode-picker issue-dialog" role="dialog" aria-modal="true" aria-labelledby="issue-title" (click)="$event.stopPropagation()">
+            <button class="mode-picker-close" type="button" aria-label="Cerrar" (click)="closeIssueDialog()">×</button>
+            <span class="eyebrow">REVISION DE PREGUNTA</span>
+            <h2 id="issue-title">Avisar de un posible error</h2>
+            <p>Indica que ves mal: enunciado, respuesta correcta, opciones, explicacion o referencia.</p>
+            <textarea rows="4" placeholder="Describe el problema..." [(ngModel)]="issueMessage"></textarea>
+            @if (issueError()) { <div class="form-error">{{ issueError() }}</div> }
+            <div class="exit-test-actions">
+              <button class="btn" type="button" [disabled]="reportingIssue()" (click)="closeIssueDialog()">Cancelar</button>
+              <button class="btn primary" type="button" [disabled]="reportingIssue()" (click)="submitIssue()">
+                {{ reportingIssue() ? 'Enviando...' : 'Enviar aviso' }}
+              </button>
+            </div>
+          </section>
+        </div>
+      }
     }
   `
 })
@@ -115,6 +141,10 @@ export class ExamPlayerComponent implements OnInit, OnDestroy {
   mode = signal<TestMode>('EXAM');
   loading = signal(true);
   submitting = signal(false);
+  reportingIssue = signal(false);
+  issueError = signal('');
+  issueQuestionId = signal<string | null>(null);
+  issueMessage = '';
   showExitDialog = signal(false);
 
   progress = computed(() =>
@@ -195,6 +225,37 @@ export class ExamPlayerComponent implements OnInit, OnDestroy {
       nextValue ? next.add(id) : next.delete(id);
       return next;
     });
+  }
+
+  openIssueDialog(questionId: string) {
+    this.issueQuestionId.set(questionId);
+    this.issueMessage = '';
+    this.issueError.set('');
+  }
+
+  closeIssueDialog() {
+    if (this.reportingIssue()) return;
+    this.issueQuestionId.set(null);
+    this.issueMessage = '';
+    this.issueError.set('');
+  }
+
+  async submitIssue() {
+    const questionId = this.issueQuestionId();
+    if (!questionId) return;
+
+    this.reportingIssue.set(true);
+    this.issueError.set('');
+
+    try {
+      await this.data.reportQuestionIssue(questionId, this.issueMessage);
+      this.reportingIssue.set(false);
+      this.closeIssueDialog();
+      alert('Aviso enviado. El administrador podra revisarlo.');
+    } catch (e: any) {
+      this.issueError.set(e?.message ?? 'No se pudo enviar el aviso.');
+      this.reportingIssue.set(false);
+    }
   }
 
   next() {

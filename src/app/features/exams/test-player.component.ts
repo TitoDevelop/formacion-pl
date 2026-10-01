@@ -1,4 +1,5 @@
 import { Component, OnDestroy, OnInit, computed, signal } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { DataService } from '../../core/data.service';
 import { Question, QuestionOfficialFilter, QuestionOption, TestMode, Topic } from '../../core/models';
@@ -21,6 +22,7 @@ type TestDraft = {
 
 @Component({
   standalone: true,
+  imports: [FormsModule],
   template: `
     @if (loading()) {
       <div class="panel empty-state">Preparando test…</div>
@@ -47,12 +49,17 @@ type TestDraft = {
         <article class="question-card">
           <div class="question-toolbar">
             <span class="question-meta">Pregunta {{ currentIndex()+1 }}</span>
-            <button
-              class="review-btn"
-              [class.marked]="marked().has(q.id)"
-              (click)="toggleMarked(q.id)">
-              {{ marked().has(q.id) ? '★ Marcada para repasar' : '☆ Marcar para repasar' }}
-            </button>
+            <div class="question-card-actions">
+              <button
+                class="review-btn"
+                [class.marked]="marked().has(q.id)"
+                (click)="toggleMarked(q.id)">
+                {{ marked().has(q.id) ? '★ Marcada para repasar' : '☆ Marcar para repasar' }}
+              </button>
+              <button class="issue-btn" type="button" (click)="openIssueDialog(q.id)">
+                Avisar error
+              </button>
+            </div>
           </div>
 
           <h2>{{ q.statement }}</h2>
@@ -120,6 +127,25 @@ type TestDraft = {
           </section>
         </div>
       }
+
+      @if (issueQuestionId()) {
+        <div class="mode-picker-backdrop" (click)="closeIssueDialog()">
+          <section class="panel mode-picker issue-dialog" role="dialog" aria-modal="true" aria-labelledby="issue-title" (click)="$event.stopPropagation()">
+            <button class="mode-picker-close" type="button" aria-label="Cerrar" (click)="closeIssueDialog()">×</button>
+            <span class="eyebrow">REVISION DE PREGUNTA</span>
+            <h2 id="issue-title">Avisar de un posible error</h2>
+            <p>Indica que ves mal: enunciado, respuesta correcta, opciones, explicacion o referencia.</p>
+            <textarea rows="4" placeholder="Describe el problema..." [(ngModel)]="issueMessage"></textarea>
+            @if (issueError()) { <div class="form-error">{{ issueError() }}</div> }
+            <div class="exit-test-actions">
+              <button class="btn" type="button" [disabled]="reportingIssue()" (click)="closeIssueDialog()">Cancelar</button>
+              <button class="btn primary" type="button" [disabled]="reportingIssue()" (click)="submitIssue()">
+                {{ reportingIssue() ? 'Enviando...' : 'Enviar aviso' }}
+              </button>
+            </div>
+          </section>
+        </div>
+      }
     }
   `
 })
@@ -132,8 +158,12 @@ export class TestPlayerComponent implements OnInit, OnDestroy {
   marked = signal<Set<string>>(new Set());
   loading = signal(true);
   submitting = signal(false);
+  reportingIssue = signal(false);
   error = signal('');
+  issueError = signal('');
   showExitDialog = signal(false);
+  issueQuestionId = signal<string | null>(null);
+  issueMessage = '';
   mode = signal<TestMode>('EXAM');
   title = signal('Test personalizado');
   source = signal<PlayerSource>('CUSTOM');
@@ -256,6 +286,37 @@ export class TestPlayerComponent implements OnInit, OnDestroy {
       nextValue ? next.add(questionId) : next.delete(questionId);
       return next;
     });
+  }
+
+  openIssueDialog(questionId: string) {
+    this.issueQuestionId.set(questionId);
+    this.issueMessage = '';
+    this.issueError.set('');
+  }
+
+  closeIssueDialog() {
+    if (this.reportingIssue()) return;
+    this.issueQuestionId.set(null);
+    this.issueMessage = '';
+    this.issueError.set('');
+  }
+
+  async submitIssue() {
+    const questionId = this.issueQuestionId();
+    if (!questionId) return;
+
+    this.reportingIssue.set(true);
+    this.issueError.set('');
+
+    try {
+      await this.data.reportQuestionIssue(questionId, this.issueMessage);
+      this.reportingIssue.set(false);
+      this.closeIssueDialog();
+      alert('Aviso enviado. El administrador podra revisarlo.');
+    } catch (e: any) {
+      this.issueError.set(e?.message ?? 'No se pudo enviar el aviso.');
+      this.reportingIssue.set(false);
+    }
   }
 
   correctOptionText(q: Question) {
