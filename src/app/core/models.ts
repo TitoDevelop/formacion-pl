@@ -39,6 +39,22 @@ export interface Question {
   question_options?: QuestionOption[];
 }
 
+export interface AdminTopicQuestionStats extends Topic {
+  question_count: number;
+}
+
+export interface AdminTopicQuestionUpdate {
+  statement: string;
+  explanation: string | null;
+  source_reference: string | null;
+  options: {
+    id: string;
+    text: string;
+    position: number;
+    is_correct: boolean;
+  }[];
+}
+
 export interface OfficialExam {
   id: string;
   name: string;

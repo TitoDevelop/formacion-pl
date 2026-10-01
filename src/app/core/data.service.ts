@@ -1,6 +1,8 @@
 import { Injectable } from '@angular/core';
 import { AuthService } from './auth.service';
 import {
+  AdminTopicQuestionStats,
+  AdminTopicQuestionUpdate,
   ExamQuestionRow,
   ImportGroup,
   OfficialExam,
@@ -592,6 +594,119 @@ export class DataService {
     if (error) throw error;
   }
 
+  async adminListTopicQuestionStats(): Promise<AdminTopicQuestionStats[]> {
+    const { data: topics, error: topicError } = await this.db.client
+      .from('topics')
+      .select('id,number,name,active')
+      .order('number', { ascending: true, nullsFirst: false });
+
+    if (topicError) throw topicError;
+
+    const list = (topics ?? []) as Topic[];
+    if (!list.length) return [];
+
+    const counts = new Map<string, number>();
+    const pageSize = 1000;
+    let from = 0;
+
+    while (true) {
+      const { data: questions, error: questionError } = await this.db.client
+        .from('questions')
+        .select('topic_id')
+        .not('topic_id', 'is', null)
+        .range(from, from + pageSize - 1);
+
+      if (questionError) throw questionError;
+
+      for (const question of questions ?? []) {
+        counts.set(question.topic_id, (counts.get(question.topic_id) ?? 0) + 1);
+      }
+
+      if (!questions || questions.length < pageSize) break;
+      from += pageSize;
+    }
+
+    return list.map(topic => ({
+      ...topic,
+      question_count: counts.get(topic.id) ?? 0
+    }));
+  }
+
+  async adminListTopicQuestions(topicId: string): Promise<Question[]> {
+    const { data, error } = await this.db.client
+      .from('questions')
+      .select(`
+        id, statement, explanation, topic_id, official, source_reference,
+        question_options (id, question_id, text, position, is_correct)
+      `)
+      .eq('topic_id', topicId)
+      .order('created_at', { ascending: true });
+
+    if (error) throw error;
+
+    return ((data ?? []) as Question[]).map(question => ({
+      ...question,
+      question_options: [...(question.question_options ?? [])].sort((a, b) => a.position - b.position)
+    }));
+  }
+
+  async adminUpdateTopicQuestion(questionId: string, update: AdminTopicQuestionUpdate): Promise<void> {
+    const statement = update.statement.trim();
+    if (!statement) throw new Error('El enunciado no puede estar vacio.');
+
+    if (update.options.length !== 4) throw new Error('La pregunta debe tener cuatro opciones.');
+
+    if (update.options.some(option => !option.text.trim())) {
+      throw new Error('No puede haber opciones vacias.');
+    }
+
+    const correctCount = update.options.filter(option => option.is_correct).length;
+    if (correctCount !== 1) throw new Error('Debe haber exactamente una respuesta correcta.');
+
+    const { error: questionError } = await this.db.client
+      .from('questions')
+      .update({
+        statement,
+        explanation: update.explanation?.trim() || null,
+        source_reference: update.source_reference?.trim() || null
+      })
+      .eq('id', questionId);
+
+    if (questionError) throw questionError;
+
+    for (const option of update.options) {
+      const { error: optionError } = await this.db.client
+        .from('question_options')
+        .update({
+          text: option.text.trim(),
+          position: option.position,
+          is_correct: option.is_correct
+        })
+        .eq('id', option.id)
+        .eq('question_id', questionId);
+
+      if (optionError) throw optionError;
+    }
+  }
+
+  async adminDeleteTopicQuestion(questionId: string): Promise<void> {
+    const { error } = await this.db.client
+      .from('questions')
+      .delete()
+      .eq('id', questionId);
+
+    if (error) throw error;
+  }
+
+  async adminDeleteTopicQuestions(topicId: string): Promise<void> {
+    const { error } = await this.db.client
+      .from('questions')
+      .delete()
+      .eq('topic_id', topicId);
+
+    if (error) throw error;
+  }
+
 
   async getTopic(topicId: string): Promise<Topic> {
     const { data, error } = await this.db.client.from('topics')
@@ -910,108 +1025,16 @@ export class DataService {
   }
 
   async importTopicCsvGroups(groups: any[]) {
-    let importedTopics = 0;
-    let importedQuestions = 0;
-    let skippedQuestions = 0;
+    const { data, error } = await this.db.client.rpc('admin_import_topic_questions', {
+      topic_groups: groups
+    });
 
-    for (const group of groups) {
-      // Importante: se resuelve el topic_id por número.
-      // Si el tema ya existe, NO cambiamos su nombre configurado en la plataforma.
-      let { data: topic, error: topicError } = await this.db.client
-        .from('topics')
-        .select('id,number,name')
-        .eq('number', group.topic_number)
-        .maybeSingle();
-
-      if (topicError) throw topicError;
-
-      if (!topic) {
-        const { data: created, error: createError } = await this.db.client
-          .from('topics')
-          .insert({
-            number: group.topic_number,
-            name: group.topic_name || `Tema ${group.topic_number}`,
-            active: true
-          })
-          .select('id,number,name')
-          .single();
-
-        if (createError) throw createError;
-        topic = created;
-        importedTopics++;
-      }
-
-      for (const q of group.questions) {
-        if (!q.statement) continue;
-
-        // Evita duplicar la misma pregunta dentro del mismo tema.
-        const { data: existing, error: existingError } = await this.db.client
-          .from('questions')
-          .select('id')
-          .eq('topic_id', topic.id)
-          .eq('statement', q.statement)
-          .eq('official', q.official)
-          .maybeSingle();
-
-        if (existingError) throw existingError;
-
-        if (existing?.id) {
-          skippedQuestions++;
-          continue;
-        }
-
-        const { data: question, error: qError } = await this.db.client
-          .from('questions')
-          .insert({
-            statement: q.statement,
-            topic_id: topic.id,
-            official: q.official,
-            source_reference: `${q.source_name} · P${q.question_number}`
-          })
-          .select('id')
-          .single();
-
-        if (qError) throw qError;
-
-        const letters = ['A', 'B', 'C', 'D'];
-        if (!letters.includes(q.correct_option)) {
-          await this.db.client.from('questions').delete().eq('id', question.id);
-          throw new Error(
-            `Respuesta correcta inválida en Tema ${group.topic_number}, pregunta ${q.question_number}.`
-          );
-        }
-
-        const optionValues = [
-          q.option_a,
-          q.option_b,
-          q.option_c,
-          q.option_d
-        ];
-
-        const options = optionValues.map((text: string, index: number) => ({
-          question_id: question.id,
-          text,
-          position: index + 1,
-          is_correct: letters[index] === q.correct_option
-        }));
-
-        const { error: optionError } = await this.db.client
-          .from('question_options')
-          .insert(options);
-
-        if (optionError) {
-          await this.db.client.from('questions').delete().eq('id', question.id);
-          throw optionError;
-        }
-
-        importedQuestions++;
-      }
-    }
+    if (error) throw error;
 
     return {
-      importedTopics,
-      importedQuestions,
-      skippedQuestions
+      importedTopics: Number(data?.importedTopics ?? 0),
+      importedQuestions: Number(data?.importedQuestions ?? 0),
+      skippedQuestions: Number(data?.skippedQuestions ?? 0)
     };
   }
 
